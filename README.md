@@ -67,7 +67,7 @@ https://script.google.com/macros/s/{SCRIPT_ID}/exec?action=setup
 
 Kết quả mong đợi:
 ```json
-{ "success": true, "message": "Setup hoàn tất! Mật khẩu mặc định: cntt123" }
+{ "success": true, "message": "Setup hoàn tất! Mật khẩu mặc định: bvps123" }
 ```
 
 Google Sheet sẽ tự động tạo 5 sheet:
@@ -119,7 +119,7 @@ const CONFIG = {
 
 1. Truy cập `https://thongtindieutri.pages.dev`
 2. Click icon 👤 góc phải → Trang Admin
-3. Đăng nhập mật khẩu: `cntt123`
+3. Đăng nhập mật khẩu: `bvps123`
 4. **Tab Khoa** → Thêm: `Khoa Sản 3`
 5. **Tab Bệnh Lý** → Chọn khoa → Thêm 4 bệnh:
    - Dọa đẻ non (Mức: Trung bình)
@@ -134,7 +134,7 @@ const CONFIG = {
 
 | Điều | Ghi chú |
 |------|---------|
-| Mật khẩu mặc định | `cntt123` — **Đổi ngay sau khi deploy!** |
+| Mật khẩu mặc định | `bvps123` — **Đổi ngay sau khi deploy!** |
 | Session token | Tự hết hạn sau 8 giờ |
 | Hash algorithm | SHA-256 (Web Crypto API) |
 | Admin path | Nhấn icon 👤 trên header |

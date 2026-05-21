@@ -37,6 +37,33 @@ const state = {
 };
 
 /* ================================================================
+   CACHE — Bộ nhớ đệm phía client
+   ================================================================ */
+const Cache = {
+  get(key) {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : null;
+    } catch (e) {
+      return null;
+    }
+  },
+  set(key, data) {
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {}
+  },
+  clear() {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('medpro_cache_')) {
+        localStorage.removeItem(key);
+      }
+    }
+  }
+};
+
+/* ================================================================
    API — Giao tiếp với Google Apps Script
    ================================================================ */
 const API = {
@@ -320,14 +347,31 @@ const App = {
     const grid = document.getElementById('dept-grid');
     if (!grid) return;
 
-    const res = await API.getDepts();
-    state.depts = res.data || [];
-
-    if (!res.success && !state.depts.length) {
-      grid.innerHTML = this.renderError('Không thể tải danh sách khoa. Vui lòng kiểm tra kết nối.');
-      return;
+    const cacheKey = 'medpro_cache_depts';
+    const cached = Cache.get(cacheKey);
+    if (cached) {
+      state.depts = cached;
+      this.renderDeptsGrid(grid, cached);
+    } else {
+      grid.innerHTML = this.renderLoading();
     }
-    if (!state.depts.length) {
+
+    const res = await API.getDepts();
+    if (res.success && res.data) {
+      const freshData = res.data;
+      const dataChanged = JSON.stringify(cached) !== JSON.stringify(freshData);
+      Cache.set(cacheKey, freshData);
+      state.depts = freshData;
+      if (dataChanged || !cached) {
+        this.renderDeptsGrid(grid, freshData);
+      }
+    } else if (!cached) {
+      grid.innerHTML = this.renderError('Không thể tải danh sách khoa. Vui lòng kiểm tra kết nối.');
+    }
+  },
+
+  renderDeptsGrid(grid, depts) {
+    if (!depts.length) {
       grid.innerHTML = `
         <div class="empty-state" style="grid-column:1/-1">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
@@ -337,7 +381,7 @@ const App = {
       return;
     }
 
-    grid.innerHTML = state.depts.map(d => `
+    grid.innerHTML = depts.map(d => `
       <div class="dept-card" style="--dept-color:${escHtml(d.color || '#2D2B8C')}"
            onclick="App.selectDept(${escHtml(JSON.stringify(d))})">
         <div class="dept-card-name">${escHtml(d.name)}</div>
@@ -376,14 +420,31 @@ const App = {
     const list = document.getElementById('cond-list');
     if (!list || !state.selectedDept) return;
 
-    const res = await API.getConditions(state.selectedDept.id);
-    state.conditions = res.data || [];
-
-    if (!res.success && !state.conditions.length) {
-      list.innerHTML = this.renderError('Không thể tải danh sách bệnh lý.');
-      return;
+    const cacheKey = `medpro_cache_conditions_${state.selectedDept.id}`;
+    const cached = Cache.get(cacheKey);
+    if (cached) {
+      state.conditions = cached;
+      this.renderConditionsList(list, cached);
+    } else {
+      list.innerHTML = this.renderLoading();
     }
-    if (!state.conditions.length) {
+
+    const res = await API.getConditions(state.selectedDept.id);
+    if (res.success && res.data) {
+      const freshData = res.data;
+      const dataChanged = JSON.stringify(cached) !== JSON.stringify(freshData);
+      Cache.set(cacheKey, freshData);
+      state.conditions = freshData;
+      if (dataChanged || !cached) {
+        this.renderConditionsList(list, freshData);
+      }
+    } else if (!cached) {
+      list.innerHTML = this.renderError('Không thể tải danh sách bệnh lý.');
+    }
+  },
+
+  renderConditionsList(list, conditions) {
+    if (!conditions.length) {
       list.innerHTML = `
         <div class="empty-state">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -392,7 +453,7 @@ const App = {
       return;
     }
 
-    list.innerHTML = state.conditions.map(c => {
+    list.innerHTML = conditions.map(c => {
       const sevColors = { high: '#B91C1C', medium: '#B45309', low: '#0F7B55' };
       const color = sevColors[c.severity] || sevColors.low;
       return `
@@ -442,28 +503,37 @@ const App = {
 
   async loadProtocol() {
     if (!state.selectedCondition) return;
-    const res = await API.getProtocol(state.selectedCondition.id);
-    state.protocol = res.data || [];
 
     const tabsEl  = document.getElementById('protocol-tabs');
     const cardsEl = document.getElementById('protocol-cards');
     if (!tabsEl || !cardsEl) return;
 
-    if (!res.success && !state.protocol.length) {
-      tabsEl.innerHTML  = '';
-      cardsEl.innerHTML = this.renderError('Không thể tải phiếu điều trị.');
-      return;
-    }
-    if (!state.protocol.length) {
-      tabsEl.innerHTML  = '';
-      cardsEl.innerHTML = `
-        <div class="protocol-empty">
-          <p>Chưa có mẫu phiếu cho bệnh lý này.</p>
-        </div>`;
-      return;
+    const cacheKey = `medpro_cache_protocol_${state.selectedCondition.id}`;
+    const cached = Cache.get(cacheKey);
+    if (cached) {
+      state.protocol = cached;
+      this.renderProtocolTabs();
+    } else {
+      tabsEl.innerHTML  = this.renderLoading('inline');
+      cardsEl.innerHTML = '';
     }
 
-    this.renderProtocolTabs();
+    const res = await API.getProtocol(state.selectedCondition.id);
+    if (res.success && res.data) {
+      const freshData = res.data;
+      const dataChanged = JSON.stringify(cached) !== JSON.stringify(freshData);
+      Cache.set(cacheKey, freshData);
+      state.protocol = freshData;
+      if (dataChanged || !cached) {
+        if (state.activeDay >= freshData.length) {
+          state.activeDay = 0;
+        }
+        this.renderProtocolTabs();
+      }
+    } else if (!cached) {
+      tabsEl.innerHTML  = '';
+      cardsEl.innerHTML = this.renderError('Không thể tải phiếu điều trị.');
+    }
   },
 
   renderProtocolTabs() {
@@ -472,6 +542,15 @@ const App = {
     if (!tabsEl || !cardsEl || !state.protocol) return;
 
     const days = state.protocol;
+
+    if (!days.length) {
+      tabsEl.innerHTML  = '';
+      cardsEl.innerHTML = `
+        <div class="protocol-empty">
+          <p>Chưa có mẫu phiếu cho bệnh lý này.</p>
+        </div>`;
+      return;
+    }
 
     // Render tabs
     tabsEl.innerHTML = days.map((d, i) => `
@@ -783,6 +862,7 @@ const App = {
 
     if (res.success) {
       this.showToast('Lưu thành công!', 'success');
+      Cache.clear();
       state.adminEditItem = 'none';
       state.adminDepts = null;
       this.renderAdminTab();
@@ -935,6 +1015,7 @@ const App = {
 
     if (res.success) {
       this.showToast('Lưu thành công!', 'success');
+      Cache.clear();
       state.adminEditItem = 'none';
       state.adminConditions = null;
       this.renderAdminTab();
@@ -1198,6 +1279,7 @@ const App = {
 
     if (res.success) {
       this.showToast('Lưu thành công!', 'success');
+      Cache.clear();
       state.adminEditItem = 'none';
       state.adminProtocols = null;
       this.renderAdminTab();
@@ -1327,6 +1409,7 @@ const App = {
       this.hideLoading();
       if (res?.success) {
         this.showToast('Đã xoá thành công!', 'success');
+        Cache.clear();
         state.adminEditItem = 'none';
         this.renderAdminTab();
       } else {
