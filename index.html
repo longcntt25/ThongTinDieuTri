@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description" content="Hệ thống tra cứu phiếu tóm tắt thông tin điều trị — Bệnh viện Phụ Sản Hải Phòng" />
+  <meta name="theme-color" content="#2D2B8C" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="BV Phụ Sản HP" />
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="Logo.png" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <title>Phiếu Điều Trị — BV Phụ Sản Hải Phòng</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ======================================== -->
+  <!-- APP SHELL                                -->
+  <!-- ======================================== -->
+  <div id="app">
+
+    <!-- Header -->
+    <header id="app-header" class="header">
+      <div class="header-inner">
+        <button id="btn-back" class="btn-back hidden" onclick="App.goBack()" aria-label="Quay lại">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+
+        <div class="header-logo-wrap" onclick="App.navigate('home')" title="Về trang chủ">
+          <img src="Logo.png" alt="Logo Bệnh viện Phụ Sản Hải Phòng" class="header-logo" />
+          <div class="header-title-wrap">
+            <span class="header-title-main">BV Phụ Sản Hải Phòng</span>
+            <span class="header-title-sub">Phiếu Tóm Tắt Điều Trị</span>
+          </div>
+        </div>
+
+        <button id="btn-admin-link" class="btn-admin-link" onclick="App.navigate('admin')" title="Trang quản trị">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4"></circle>
+            <path d="M20 21a8 8 0 10-16 0"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Breadcrumb -->
+      <div id="breadcrumb" class="breadcrumb hidden">
+        <span id="bc-dept" class="bc-item hidden" onclick="App.navigate('home')"></span>
+        <svg class="bc-sep hidden" id="bc-sep1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        <span id="bc-cond" class="bc-item hidden"></span>
+      </div>
+
+
+    </header>
+
+    <!-- Main Content -->
+    <main id="app-main" class="main-content" role="main">
+      <div class="loading-screen">
+        <div class="spinner"></div>
+        <p>Đang tải...</p>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ======================================== -->
+  <!-- TOAST NOTIFICATION                       -->
+  <!-- ======================================== -->
+  <div id="toast" class="toast hidden" role="alert" aria-live="polite"></div>
+
+  <!-- ======================================== -->
+  <!-- GLOBAL LOADING OVERLAY                   -->
+  <!-- ======================================== -->
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="loading-box">
+      <div class="spinner-large"></div>
+      <p id="loading-msg">Đang xử lý...</p>
+    </div>
+  </div>
+
+  <!-- ======================================== -->
+  <!-- CONFIRM MODAL                            -->
+  <!-- ======================================== -->
+  <div id="modal-overlay" class="modal-overlay hidden" onclick="App.closeModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <h3 id="modal-title" class="modal-title"></h3>
+      <p id="modal-msg" class="modal-msg"></p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Huỷ</button>
+        <button id="modal-confirm" class="btn btn-danger">Xác nhận</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+
+  <!-- Force Unregister Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let r of registrations) {
+          r.unregister().then(success => {
+            if (success) console.log('[SW] Unregistered');
+          });
+        }
+      });
+    }
+  </script>
+
+</body>
+</html>

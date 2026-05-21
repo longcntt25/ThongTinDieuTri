@@ -1,0 +1,28 @@
+{
+  "name": "Phiếu Điều Trị — BV Phụ Sản HP",
+  "short_name": "BV Phụ Sản HP",
+  "description": "Hệ thống tra cứu phiếu tóm tắt thông tin điều trị — Bệnh viện Phụ Sản Hải Phòng",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#2D2B8C",
+  "theme_color": "#2D2B8C",
+  "orientation": "portrait-primary",
+  "lang": "vi",
+  "icons": [
+    {
+      "src": "Logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "Logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["medical", "health"],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
