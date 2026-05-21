@@ -8,7 +8,7 @@
    ================================================================ */
 const CONFIG = {
   // Sau khi deploy Google Apps Script, copy URL vào đây
-  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbx9kIYtbVX0GsUfT8r9cKmSk0W9-TMZypM6yIlWNGcEZ-frt_KEm4pDtd0bjYlQsbuT/exec',
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyDcFo3w1ITMl_yJXJF9wax5dJKN7dbCzQmvfqLTYljmaJuPEDmjHIMq0mZm91rAGKl/exec',
   ADMIN_TOKEN_KEY: 'medpro_admin_token',
   VERSION: '1.0.0'
 };
