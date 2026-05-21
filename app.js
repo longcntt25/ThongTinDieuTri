@@ -7,10 +7,11 @@
    CONFIGURATION — THAY URL APPS SCRIPT VÀO ĐÂY
    ================================================================ */
 const CONFIG = {
-  // Sau khi deploy Google Apps Script, copy URL vào đây
-  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxxATYw0pSvGiCGRV02fsQKnuSsjapsjD-hf8Z6oKeQeEI9fEppS_o5AgatDfRVnTdc/exec',
+  // ✅ Sau khi deploy Cloudflare Worker, copy URL vào đây
+  // URL có dạng: https://medprotocol-api.TÊN_BẠN.workers.dev
+  SCRIPT_URL: 'https://medprotocol-api.longcntt25.workers.dev/',
   ADMIN_TOKEN_KEY: 'medpro_admin_token',
-  VERSION: '1.0.0'
+  VERSION: '2.0.0'
 };
 
 /* ================================================================
@@ -136,8 +137,8 @@ const API = {
       });
       const resp = await fetch(CONFIG.SCRIPT_URL, {
         method: 'POST',
-        // Dùng text/plain để tránh CORS preflight với Google Apps Script
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        // ✅ Worker dùng application/json (khác Apps Script dùng text/plain)
+        headers: { 'Content-Type': 'application/json;charset=utf-8' },
         body,
         redirect: 'follow'
       });
