@@ -40,19 +40,38 @@ const state = {
    CACHE — Bộ nhớ đệm phía client
    ================================================================ */
 const Cache = {
+  _FRESH_MS: 60000, // Cache dưới 60 giây coi là "tươi", bỏ qua revalidate
+
   get(key) {
     try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : null;
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      // Hỗ trợ cả format cũ (không có _d) và mới
+      return parsed._d !== undefined ? parsed._d : parsed;
     } catch (e) {
       return null;
     }
   },
+
+  isFresh(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      if (!parsed._t) return false;
+      return (Date.now() - parsed._t) < this._FRESH_MS;
+    } catch (e) {
+      return false;
+    }
+  },
+
   set(key, data) {
     try {
-      localStorage.setItem(key, JSON.stringify(data));
+      localStorage.setItem(key, JSON.stringify({ _d: data, _t: Date.now() }));
     } catch (e) {}
   },
+
   clear() {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
@@ -67,20 +86,32 @@ const Cache = {
    API — Giao tiếp với Google Apps Script
    ================================================================ */
 const API = {
+  // Bộ chống trùng lặp request — nếu request giống đang bay, dùng lại kết quả
+  _inflight: new Map(),
 
   async get(action, params = {}) {
-    try {
-      const qs = new URLSearchParams({ action, ...params }).toString();
-      const resp = await fetch(`${CONFIG.SCRIPT_URL}?${qs}`, {
-        method: 'GET',
-        redirect: 'follow'
-      });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      return await resp.json();
-    } catch (err) {
-      console.error('[API GET] Error:', err);
-      return { success: false, error: 'Lỗi kết nối: ' + err.message };
+    const dedupeKey = action + '_' + JSON.stringify(params);
+    if (this._inflight.has(dedupeKey)) {
+      return this._inflight.get(dedupeKey);
     }
+    const promise = (async () => {
+      try {
+        const qs = new URLSearchParams({ action, ...params }).toString();
+        const resp = await fetch(`${CONFIG.SCRIPT_URL}?${qs}`, {
+          method: 'GET',
+          redirect: 'follow'
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return await resp.json();
+      } catch (err) {
+        console.error('[API GET] Error:', err);
+        return { success: false, error: 'Lỗi kết nối: ' + err.message };
+      } finally {
+        this._inflight.delete(dedupeKey);
+      }
+    })();
+    this._inflight.set(dedupeKey, promise);
+    return promise;
   },
 
   async post(action, data = {}) {
@@ -115,6 +146,14 @@ const API = {
 
   async getProtocol(condId) {
     return this.get('getProtocol', { condId });
+  },
+
+  // Endpoint gộp cho Admin — 1 request thay vì 2-3 request
+  async getAdminData(deptId, condId) {
+    const params = {};
+    if (deptId) params.deptId = deptId;
+    if (condId) params.condId = condId;
+    return this.get('getAdminData', params);
   },
 
   async login(password) {
@@ -352,6 +391,8 @@ const App = {
     if (cached) {
       state.depts = cached;
       this.renderDeptsGrid(grid, cached);
+      // Nếu cache còn tươi (< 60s), bỏ qua fetch ngầm
+      if (Cache.isFresh(cacheKey)) return;
     } else {
       grid.innerHTML = this.renderLoading();
     }
@@ -425,6 +466,8 @@ const App = {
     if (cached) {
       state.conditions = cached;
       this.renderConditionsList(list, cached);
+      // Nếu cache còn tươi (< 60s), bỏ qua fetch ngầm
+      if (Cache.isFresh(cacheKey)) return;
     } else {
       list.innerHTML = this.renderLoading();
     }
@@ -513,6 +556,8 @@ const App = {
     if (cached) {
       state.protocol = cached;
       this.renderProtocolTabs();
+      // Nếu cache còn tươi (< 60s), bỏ qua fetch ngầm
+      if (Cache.isFresh(cacheKey)) return;
     } else {
       tabsEl.innerHTML  = this.renderLoading('inline');
       cardsEl.innerHTML = '';
@@ -873,18 +918,27 @@ const App = {
 
   /* --- Admin: Quản lý Bệnh Lý --- */
   async buildAdminConditions() {
-    // Cần danh sách khoa để chọn
-    const deptRes = await API.getDepts();
-    state.adminDepts = deptRes.data || [];
-
-    let condRes = { data: [] };
-    if (!state.adminFilterDept && state.adminDepts.length) {
-      state.adminFilterDept = state.adminDepts[0].id;
+    // 1 request duy nhất thay vì 2 request tuần tự
+    const res = await API.getAdminData(state.adminFilterDept);
+    if (res.success) {
+      state.adminDepts = res.depts || [];
+      if (!state.adminFilterDept && state.adminDepts.length) {
+        state.adminFilterDept = res.selectedDeptId || state.adminDepts[0].id;
+      }
+      state.adminConditions = res.conditions || [];
+    } else {
+      // Fallback về API cũ nếu endpoint mới chưa được deploy
+      const deptRes = await API.getDepts();
+      state.adminDepts = deptRes.data || [];
+      if (!state.adminFilterDept && state.adminDepts.length) {
+        state.adminFilterDept = state.adminDepts[0].id;
+      }
+      let condRes = { data: [] };
+      if (state.adminFilterDept) {
+        condRes = await API.getConditions(state.adminFilterDept);
+      }
+      state.adminConditions = condRes.data || [];
     }
-    if (state.adminFilterDept) {
-      condRes = await API.getConditions(state.adminFilterDept);
-    }
-    state.adminConditions = condRes.data || [];
 
     const editing = state.adminEditItem;
 
@@ -1032,28 +1086,39 @@ const App = {
 
   /* --- Admin: Quản lý Mẫu Phiếu --- */
   async buildAdminProtocols() {
-    const deptRes = await API.getDepts();
-    state.adminDepts = deptRes.data || [];
-
-    if (!state.adminFilterDept && state.adminDepts.length) {
-      state.adminFilterDept = state.adminDepts[0].id;
+    // 1 request duy nhất thay vì 3 request tuần tự
+    const res = await API.getAdminData(state.adminFilterDept, state.adminFilterCond);
+    if (res.success) {
+      state.adminDepts = res.depts || [];
+      if (!state.adminFilterDept && state.adminDepts.length) {
+        state.adminFilterDept = res.selectedDeptId || state.adminDepts[0].id;
+      }
+      state.adminConditions = res.conditions || [];
+      if (!state.adminFilterCond && state.adminConditions.length) {
+        state.adminFilterCond = res.selectedCondId || state.adminConditions[0].id;
+      }
+      state.adminProtocols = res.protocols || [];
+    } else {
+      // Fallback về API cũ nếu endpoint mới chưa được deploy
+      const deptRes = await API.getDepts();
+      state.adminDepts = deptRes.data || [];
+      if (!state.adminFilterDept && state.adminDepts.length) {
+        state.adminFilterDept = state.adminDepts[0].id;
+      }
+      let condRes = { data: [] };
+      if (state.adminFilterDept) {
+        condRes = await API.getConditions(state.adminFilterDept);
+      }
+      state.adminConditions = condRes.data || [];
+      if (!state.adminFilterCond && state.adminConditions.length) {
+        state.adminFilterCond = state.adminConditions[0].id;
+      }
+      let proRes = { data: [] };
+      if (state.adminFilterCond) {
+        proRes = await API.getProtocol(state.adminFilterCond);
+      }
+      state.adminProtocols = proRes.data || [];
     }
-
-    let condRes = { data: [] };
-    if (state.adminFilterDept) {
-      condRes = await API.getConditions(state.adminFilterDept);
-    }
-    state.adminConditions = condRes.data || [];
-
-    if (!state.adminFilterCond && state.adminConditions.length) {
-      state.adminFilterCond = state.adminConditions[0].id;
-    }
-
-    let proRes = { data: [] };
-    if (state.adminFilterCond) {
-      proRes = await API.getProtocol(state.adminFilterCond);
-    }
-    state.adminProtocols = proRes.data || [];
 
     const editing = state.adminEditItem;
 
