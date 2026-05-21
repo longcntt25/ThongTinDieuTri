@@ -154,6 +154,49 @@ function severityClass(s) {
   return `badge badge-${s || 'low'}`;
 }
 
+function parseProtocolSections(p) {
+  if (!p) return [];
+  let assessmentStr = String(p.assessment || '').trim();
+  if (assessmentStr.startsWith('[') && assessmentStr.endsWith(']')) {
+    try {
+      return JSON.parse(assessmentStr);
+    } catch (e) {
+      console.error('Lỗi parse JSON trong assessment:', e);
+    }
+  }
+  return [
+    { title: 'Thăm Khám, Đánh Giá', content: p.assessment || '' },
+    { title: 'Cận Lâm Sàng',           content: p.labTests || '' },
+    { title: 'Điều Trị',                  content: p.treatment || '' },
+    { title: 'Dinh Dưỡng & Sinh Hoạt',   content: p.nutrition || '' },
+    { title: 'Truyền Thông',              content: p.communication || '' }
+  ];
+}
+
+function getSectionStyle(title) {
+  const t = String(title || '').toLowerCase();
+  if (t.includes('khám') || t.includes('đánh giá') || (t.includes('lâm sàng') && !t.includes('cận'))) {
+    return { cls: 'col-assess', icon: iconStethoscope() };
+  }
+  if (t.includes('xét nghiệm') || t.includes('cận lâm sàng') || t.includes('siêu âm') || t.includes('x-quang') || t.includes('ctg') || t.includes('chiếu chụp')) {
+    return { cls: 'col-lab', icon: iconLab() };
+  }
+  if (t.includes('thuốc') || t.includes('điều trị') || t.includes('phác đồ') || t.includes('dùng thuốc')) {
+    return { cls: 'col-treat', icon: iconPill() };
+  }
+  if (t.includes('dinh dưỡng') || t.includes('ăn uống') || t.includes('sinh hoạt') || t.includes('nghỉ ngơi') || t.includes('vận động')) {
+    return { cls: 'col-nutri', icon: iconNutrition() };
+  }
+  if (t.includes('truyền thông') || t.includes('tư vấn') || t.includes('hướng dẫn') || t.includes('giải thích')) {
+    return { cls: 'col-comm', icon: iconComm() };
+  }
+  return { cls: 'col-assess', icon: iconList() };
+}
+
+function iconList() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`;
+}
+
 /* ================================================================
    APP — Main Application
    ================================================================ */
@@ -442,42 +485,38 @@ const App = {
     const day = days[state.activeDay];
     if (!day) { cardsEl.innerHTML = ''; return; }
 
-    const cols = [
-      { key: 'assessment',    cls: 'col-assess', label: 'Thăm Khám, Đánh Giá',      icon: iconStethoscope() },
-      { key: 'labTests',      cls: 'col-lab',    label: 'Cận Lâm Sàng',             icon: iconLab()         },
-      { key: 'treatment',     cls: 'col-treat',  label: 'Điều Trị',                  icon: iconPill()        },
-      { key: 'nutrition',     cls: 'col-nutri',  label: 'Dinh Dưỡng & Sinh Hoạt',   icon: iconNutrition()   },
-      { key: 'communication', cls: 'col-comm',   label: 'Truyền Thông',              icon: iconComm()        },
-      { key: 'careLevel',     cls: 'col-care',   label: 'Cấp Độ Chăm Sóc',         icon: iconCare()        }
-    ];
+    const sections = parseProtocolSections(day);
+    const careVal = day.careLevel;
+    const careIsEmpty = !careVal || !String(careVal).trim();
 
-    cardsEl.innerHTML = cols.map(col => {
-      const val = day[col.key];
+    let cardsHtml = sections.map(sec => {
+      const style = getSectionStyle(sec.title);
+      const val = sec.content;
       const isEmpty = !val || !String(val).trim();
-
-      // Care level — hiển thị đặc biệt
-      if (col.key === 'careLevel') {
-        return `
-          <div class="proto-card col-care-wrap">
-            <div class="proto-card-header ${col.cls}">
-              ${col.icon} ${col.label}
-            </div>
-            <div class="proto-card-body">
-              <div class="care-level-value">${isEmpty ? '—' : escHtml(String(val))}</div>
-            </div>
-          </div>`;
-      }
 
       return `
         <div class="proto-card">
-          <div class="proto-card-header ${col.cls}">
-            ${col.icon} ${col.label}
+          <div class="proto-card-header ${style.cls}">
+            ${style.icon} ${escHtml(sec.title)}
           </div>
           <div class="proto-card-body">
             ${isEmpty ? '<span class="text-muted">Không có nội dung</span>' : nl2list(val)}
           </div>
         </div>`;
     }).join('');
+
+    // Cấp độ chăm sóc hiển thị đặc biệt ở dưới cùng
+    cardsHtml += `
+      <div class="proto-card col-care-wrap">
+        <div class="proto-card-header col-care">
+          ${iconCare()} Cấp Độ Chăm Sóc
+        </div>
+        <div class="proto-card-body">
+          <div class="care-level-value">${careIsEmpty ? '—' : escHtml(String(careVal))}</div>
+        </div>
+      </div>`;
+
+    cardsEl.innerHTML = cardsHtml;
 
     // Scroll tabs active vào view
     const activeTab = tabsEl.querySelector('.day-tab.active');
@@ -978,7 +1017,7 @@ const App = {
                 <div class="admin-list-item-meta">Chăm sóc: ${escHtml(p.careLevel || '—')}</div>
               </div>
               <div class="admin-list-item-actions">
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="App.editProtocol(${escHtml(JSON.stringify(p))})">
+                <button class="btn btn-ghost btn-sm btn-icon" onclick="App.editProtocol('${escHtml(p.id)}')">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
                 <button class="btn btn-ghost btn-sm btn-icon" style="color:var(--danger)" onclick="App.confirmDelete('protocol','${escHtml(p.id)}','${escHtml(p.dayLabel || '')}')">
@@ -994,16 +1033,6 @@ const App = {
 
   renderProtocolForm(proto) {
     const isNew = !proto || !proto.id;
-    const ta = (id, val, placeholder) =>
-      `<textarea id="${id}" class="form-textarea" rows="4" placeholder="${placeholder}">${escHtml(val || '')}</textarea>`;
-
-    const fields = [
-      { id: 'pf-assess', key: 'assessment',    label: 'Thăm Khám, Đánh Giá',    ph: 'Mỗi mục trên một dòng...' },
-      { id: 'pf-lab',    key: 'labTests',      label: 'Cận Lâm Sàng',           ph: 'CTG\nSiêu âm...'         },
-      { id: 'pf-treat',  key: 'treatment',     label: 'Điều Trị',                ph: 'Thuốc, liều dùng...'      },
-      { id: 'pf-nutri',  key: 'nutrition',     label: 'Dinh Dưỡng & Sinh Hoạt', ph: 'Nghỉ ngơi...'             },
-      { id: 'pf-comm',   key: 'communication', label: 'Truyền Thông',            ph: 'Tư vấn...'                },
-    ];
 
     return `
       <div class="admin-form-panel">
@@ -1013,26 +1042,36 @@ const App = {
         <form onsubmit="App.saveProtocolForm(event)">
           <input type="hidden" id="pf-id"     value="${escHtml(proto?.id || '')}" />
           <input type="hidden" id="pf-condid" value="${escHtml(state.adminFilterCond)}" />
+          
           <div class="form-group">
             <label class="form-label">Tên giai đoạn <span class="req">*</span></label>
             <input type="text" id="pf-day" class="form-input" value="${escHtml(proto?.dayLabel || '')}"
                    required placeholder="VD: Ngày 1, Ngày 2-3, Xuất viện..." />
           </div>
-          ${fields.map(f => `
-            <div class="form-group">
-              <label class="form-label">${f.label}</label>
-              ${ta(f.id, proto?.[f.key], f.ph)}
-              <div class="form-hint">Mỗi dòng = một mục bullet</div>
+
+          <div class="form-group">
+            <label class="form-label" style="font-weight: 700;">Các Phân Mục Chi Tiết</label>
+            
+            <div id="protocol-sections-container">
+              <!-- Các phân mục động được chèn tại đây -->
             </div>
-          `).join('')}
+
+            <button type="button" class="btn btn-ghost btn-sm" onclick="App.addFormSection()" style="margin-top: 8px; border: 1px dashed var(--text-secondary); width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Thêm phân mục mới
+            </button>
+          </div>
+
           <div class="form-group">
             <label class="form-label">Cấp Độ Chăm Sóc</label>
             <input type="text" id="pf-care" class="form-input" value="${escHtml(proto?.careLevel || '')}" placeholder="VD: Cấp 1, Cấp 2, Cấp 3" />
           </div>
+
           <div class="form-group">
             <label class="form-label">Thứ tự</label>
             <input type="number" id="pf-order" class="form-input" value="${escHtml(String(proto?.sortOrder || (state.adminProtocols?.length + 1) || 1))}" min="1" style="max-width:120px" />
           </div>
+
           <div class="admin-form-actions">
             <button type="submit" class="btn btn-primary btn-sm">Lưu Mẫu Phiếu</button>
             <button type="button" class="btn btn-ghost btn-sm" onclick="App.cancelEdit()">Huỷ</button>
@@ -1042,23 +1081,112 @@ const App = {
     `;
   },
 
-  editProtocol(protoObj) {
-    const proto = typeof protoObj === 'string' ? JSON.parse(protoObj) : protoObj;
-    state.adminEditItem = proto;
-    this.renderAdminTab();
+  async editProtocol(protoId) {
+    let proto = null;
+    if (protoId) {
+      proto = (state.adminProtocols || []).find(p => p.id === protoId);
+    }
+    state.adminEditItem = proto || { id: '', dayLabel: '', careLevel: '', sortOrder: '' };
+    await this.renderAdminTab();
+
+    let sections;
+    if (!protoId || !proto) {
+      sections = [
+        { title: 'Thăm Khám, Đánh Giá', content: '' },
+        { title: 'Cận Lâm Sàng',           content: '' },
+        { title: 'Điều Trị',                  content: '' },
+        { title: 'Dinh Dưỡng & Sinh Hoạt',   content: '' },
+        { title: 'Truyền Thông',              content: '' }
+      ];
+    } else {
+      sections = parseProtocolSections(proto);
+    }
+    this.renderFormSections(sections);
+  },
+
+  renderFormSections(sections) {
+    const container = document.getElementById('protocol-sections-container');
+    if (!container) return;
+
+    container.innerHTML = sections.map((sec, idx) => `
+      <div class="form-section-item" data-index="${idx}" style="border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-md); background: #FAF9FF;">
+        <div style="display: flex; gap: var(--space-sm); align-items: center; margin-bottom: var(--space-xs);">
+          <input type="text" class="form-input section-title-input" value="${escHtml(sec.title)}" placeholder="Tên phân mục (VD: Thăm khám...)" style="font-weight: 600; flex: 1;" required />
+          
+          <div style="display: flex; gap: 4px; flex-shrink: 0;">
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="App.moveFormSection(${idx}, -1)" title="Di chuyển lên" ${idx === 0 ? 'disabled' : ''}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="App.moveFormSection(${idx}, 1)" title="Di chuyển xuống" ${idx === sections.length - 1 ? 'disabled' : ''}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" style="color: var(--danger);" onclick="App.deleteFormSection(${idx})" title="Xóa phân mục">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          </div>
+        </div>
+        <textarea class="form-textarea section-content-textarea" rows="3" placeholder="Nội dung (mỗi dòng là một đầu dòng)...">${escHtml(sec.content)}</textarea>
+      </div>
+    `).join('');
+  },
+
+  getFormSections() {
+    const container = document.getElementById('protocol-sections-container');
+    if (!container) return [];
+    const items = container.querySelectorAll('.form-section-item');
+    const sections = [];
+    items.forEach(item => {
+      const titleInput = item.querySelector('.section-title-input');
+      const contentArea = item.querySelector('.section-content-textarea');
+      if (titleInput) {
+        sections.push({
+          title: titleInput.value.trim(),
+          content: contentArea ? contentArea.value.trim() : ''
+        });
+      }
+    });
+    return sections;
+  },
+
+  addFormSection() {
+    const sections = this.getFormSections();
+    sections.push({ title: '', content: '' });
+    this.renderFormSections(sections);
+  },
+
+  deleteFormSection(index) {
+    const sections = this.getFormSections();
+    sections.splice(index, 1);
+    this.renderFormSections(sections);
+  },
+
+  moveFormSection(index, direction) {
+    const sections = this.getFormSections();
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= sections.length) return;
+
+    // Tráo đổi vị trí
+    const temp = sections[index];
+    sections[index] = sections[targetIndex];
+    sections[targetIndex] = temp;
+
+    this.renderFormSections(sections);
   },
 
   async saveProtocolForm(e) {
     e.preventDefault();
+    
+    const sections = this.getFormSections().filter(sec => sec.title.trim() !== '');
+
     const item = {
       id:            document.getElementById('pf-id').value || genId(),
       condId:        document.getElementById('pf-condid').value,
       dayLabel:      document.getElementById('pf-day').value.trim(),
-      assessment:    document.getElementById('pf-assess').value.trim(),
-      labTests:      document.getElementById('pf-lab').value.trim(),
-      treatment:     document.getElementById('pf-treat').value.trim(),
-      nutrition:     document.getElementById('pf-nutri').value.trim(),
-      communication: document.getElementById('pf-comm').value.trim(),
+      assessment:    JSON.stringify(sections),
+      labTests:      '',
+      treatment:     '',
+      nutrition:     '',
+      communication: '',
       careLevel:     document.getElementById('pf-care').value.trim(),
       sortOrder:     parseInt(document.getElementById('pf-order').value) || 1
     };
