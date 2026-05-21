@@ -79,6 +79,18 @@ const Cache = {
         localStorage.removeItem(key);
       }
     }
+  },
+
+  remove(keyOrPrefix) {
+    try {
+      localStorage.removeItem(keyOrPrefix);
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(keyOrPrefix)) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch (e) {}
   }
 };
 
@@ -907,7 +919,7 @@ const App = {
 
     if (res.success) {
       this.showToast('Lưu thành công!', 'success');
-      Cache.clear();
+      Cache.remove('medpro_cache_depts');
       state.adminEditItem = 'none';
       state.adminDepts = null;
       this.renderAdminTab();
@@ -1069,7 +1081,7 @@ const App = {
 
     if (res.success) {
       this.showToast('Lưu thành công!', 'success');
-      Cache.clear();
+      Cache.remove('medpro_cache_conditions_');
       state.adminEditItem = 'none';
       state.adminConditions = null;
       this.renderAdminTab();
@@ -1344,7 +1356,7 @@ const App = {
 
     if (res.success) {
       this.showToast('Lưu thành công!', 'success');
-      Cache.clear();
+      Cache.remove('medpro_cache_protocol_');
       state.adminEditItem = 'none';
       state.adminProtocols = null;
       this.renderAdminTab();
@@ -1474,7 +1486,16 @@ const App = {
       this.hideLoading();
       if (res?.success) {
         this.showToast('Đã xoá thành công!', 'success');
-        Cache.clear();
+        if (type === 'dept') {
+          Cache.remove('medpro_cache_depts');
+          Cache.remove('medpro_cache_conditions_');
+          Cache.remove('medpro_cache_protocol_');
+        } else if (type === 'condition') {
+          Cache.remove('medpro_cache_conditions_');
+          Cache.remove('medpro_cache_protocol_');
+        } else if (type === 'protocol') {
+          Cache.remove('medpro_cache_protocol_');
+        }
         state.adminEditItem = 'none';
         this.renderAdminTab();
       } else {
