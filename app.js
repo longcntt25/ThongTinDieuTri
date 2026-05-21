@@ -18,6 +18,7 @@ const CONFIG = {
    ================================================================ */
 const state = {
   view:              'home',      // 'home' | 'conditions' | 'protocol' | 'admin-login' | 'admin'
+  allData:           null,        // Dữ liệu preloaded gộp
   depts:             null,
   conditions:        null,
   protocol:          null,
@@ -160,6 +161,10 @@ const API = {
     return this.get('getProtocol', { condId });
   },
 
+  async getAllData() {
+    return this.get('getAllData');
+  },
+
   // Endpoint gộp cho Admin — 1 request thay vì 2-3 request
   async getAdminData(deptId, condId) {
     const params = {};
@@ -280,12 +285,95 @@ function iconList() {
    ================================================================ */
 const App = {
 
+  _preloadPromise: null,
+
+  async ensureDataLoaded() {
+    if (state.allData) return;
+    if (!this._preloadPromise) {
+      this._preloadPromise = this.preloadData();
+    }
+    try {
+      await this._preloadPromise;
+    } catch (e) {
+      this._preloadPromise = null; // Cho phép thử lại nếu thất bại
+      throw e;
+    }
+  },
+
+  async preloadData() {
+    const cacheKey = 'medpro_cache_all_data';
+    const cached = Cache.get(cacheKey);
+
+    if (cached && cached.depts && cached.conditions && cached.protocols) {
+      state.allData = cached;
+      // Nếu cache không còn tươi (stale), chạy fetch ngầm
+      if (!Cache.isFresh(cacheKey)) {
+        this.fetchDataBackground(cacheKey, cached);
+      }
+      return;
+    }
+
+    // Nếu không có cache hoặc cache bị lỗi, bắt buộc tải trực tiếp
+    const res = await API.getAllData();
+    if (res.success && res.depts && res.conditions && res.protocols) {
+      const freshData = {
+        depts: res.depts,
+        conditions: res.conditions,
+        protocols: res.protocols
+      };
+      Cache.set(cacheKey, freshData);
+      state.allData = freshData;
+    } else {
+      console.error('[preloadData] Lỗi tải dữ liệu:', res.error);
+      throw new Error(res.error || 'Không thể kết nối đến máy chủ.');
+    }
+  },
+
+  async fetchDataBackground(cacheKey, cached) {
+    try {
+      const res = await API.getAllData();
+      if (res.success && res.depts && res.conditions && res.protocols) {
+        const freshData = {
+          depts: res.depts,
+          conditions: res.conditions,
+          protocols: res.protocols
+        };
+        const dataChanged = JSON.stringify(cached) !== JSON.stringify(freshData);
+        Cache.set(cacheKey, freshData);
+        state.allData = freshData;
+
+        if (dataChanged) {
+          console.log('[SWR] Phát hiện dữ liệu mới thay đổi ngầm, cập nhật giao diện');
+          const v = state.view;
+          if (v === 'home') {
+            const grid = document.getElementById('dept-grid');
+            if (grid) this.renderDeptsGrid(grid, state.allData.depts);
+          } else if (v === 'conditions' && state.selectedDept) {
+            const list = document.getElementById('cond-list');
+            if (list) {
+              state.conditions = state.allData.conditions.filter(c => c.deptId === state.selectedDept.id);
+              this.renderConditionsList(list, state.conditions);
+            }
+          } else if (v === 'protocol' && state.selectedCondition) {
+            state.protocol = state.allData.protocols.filter(p => p.condId === state.selectedCondition.id);
+            this.renderProtocolTabs();
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[SWR] Lỗi khi tải dữ liệu ngầm:', e);
+    }
+  },
+
   /* ---------- INIT ---------- */
   async init() {
     // Khôi phục admin token nếu có
     state.adminToken = sessionStorage.getItem(CONFIG.ADMIN_TOKEN_KEY) || null;
 
-
+    // Kích hoạt preload dữ liệu ngay từ đầu
+    this.ensureDataLoaded().catch(err => {
+      console.error('Lỗi khi preload dữ liệu:', err);
+    });
 
     // Render trang chủ
     await this.navigate('home');
@@ -398,27 +486,11 @@ const App = {
     const grid = document.getElementById('dept-grid');
     if (!grid) return;
 
-    const cacheKey = 'medpro_cache_depts';
-    const cached = Cache.get(cacheKey);
-    if (cached) {
-      state.depts = cached;
-      this.renderDeptsGrid(grid, cached);
-      // Nếu cache còn tươi (< 60s), bỏ qua fetch ngầm
-      if (Cache.isFresh(cacheKey)) return;
-    } else {
-      grid.innerHTML = this.renderLoading();
-    }
-
-    const res = await API.getDepts();
-    if (res.success && res.data) {
-      const freshData = res.data;
-      const dataChanged = JSON.stringify(cached) !== JSON.stringify(freshData);
-      Cache.set(cacheKey, freshData);
-      state.depts = freshData;
-      if (dataChanged || !cached) {
-        this.renderDeptsGrid(grid, freshData);
-      }
-    } else if (!cached) {
+    try {
+      await this.ensureDataLoaded();
+      state.depts = state.allData.depts;
+      this.renderDeptsGrid(grid, state.depts);
+    } catch (err) {
       grid.innerHTML = this.renderError('Không thể tải danh sách khoa. Vui lòng kiểm tra kết nối.');
     }
   },
@@ -473,27 +545,11 @@ const App = {
     const list = document.getElementById('cond-list');
     if (!list || !state.selectedDept) return;
 
-    const cacheKey = `medpro_cache_conditions_${state.selectedDept.id}`;
-    const cached = Cache.get(cacheKey);
-    if (cached) {
-      state.conditions = cached;
-      this.renderConditionsList(list, cached);
-      // Nếu cache còn tươi (< 60s), bỏ qua fetch ngầm
-      if (Cache.isFresh(cacheKey)) return;
-    } else {
-      list.innerHTML = this.renderLoading();
-    }
-
-    const res = await API.getConditions(state.selectedDept.id);
-    if (res.success && res.data) {
-      const freshData = res.data;
-      const dataChanged = JSON.stringify(cached) !== JSON.stringify(freshData);
-      Cache.set(cacheKey, freshData);
-      state.conditions = freshData;
-      if (dataChanged || !cached) {
-        this.renderConditionsList(list, freshData);
-      }
-    } else if (!cached) {
+    try {
+      await this.ensureDataLoaded();
+      state.conditions = state.allData.conditions.filter(c => c.deptId === state.selectedDept.id);
+      this.renderConditionsList(list, state.conditions);
+    } catch (err) {
       list.innerHTML = this.renderError('Không thể tải danh sách bệnh lý.');
     }
   },
@@ -563,31 +619,14 @@ const App = {
     const cardsEl = document.getElementById('protocol-cards');
     if (!tabsEl || !cardsEl) return;
 
-    const cacheKey = `medpro_cache_protocol_${state.selectedCondition.id}`;
-    const cached = Cache.get(cacheKey);
-    if (cached) {
-      state.protocol = cached;
-      this.renderProtocolTabs();
-      // Nếu cache còn tươi (< 60s), bỏ qua fetch ngầm
-      if (Cache.isFresh(cacheKey)) return;
-    } else {
-      tabsEl.innerHTML  = this.renderLoading('inline');
-      cardsEl.innerHTML = '';
-    }
-
-    const res = await API.getProtocol(state.selectedCondition.id);
-    if (res.success && res.data) {
-      const freshData = res.data;
-      const dataChanged = JSON.stringify(cached) !== JSON.stringify(freshData);
-      Cache.set(cacheKey, freshData);
-      state.protocol = freshData;
-      if (dataChanged || !cached) {
-        if (state.activeDay >= freshData.length) {
-          state.activeDay = 0;
-        }
-        this.renderProtocolTabs();
+    try {
+      await this.ensureDataLoaded();
+      state.protocol = state.allData.protocols.filter(p => p.condId === state.selectedCondition.id);
+      if (state.activeDay >= state.protocol.length) {
+        state.activeDay = 0;
       }
-    } else if (!cached) {
+      this.renderProtocolTabs();
+    } catch (err) {
       tabsEl.innerHTML  = '';
       cardsEl.innerHTML = this.renderError('Không thể tải phiếu điều trị.');
     }
@@ -919,7 +958,9 @@ const App = {
 
     if (res.success) {
       this.showToast('Lưu thành công!', 'success');
-      Cache.remove('medpro_cache_depts');
+      Cache.clear();
+      state.allData = null;
+      this._preloadPromise = null;
       state.adminEditItem = 'none';
       state.adminDepts = null;
       this.renderAdminTab();
@@ -1081,7 +1122,9 @@ const App = {
 
     if (res.success) {
       this.showToast('Lưu thành công!', 'success');
-      Cache.remove('medpro_cache_conditions_');
+      Cache.clear();
+      state.allData = null;
+      this._preloadPromise = null;
       state.adminEditItem = 'none';
       state.adminConditions = null;
       this.renderAdminTab();
@@ -1356,7 +1399,9 @@ const App = {
 
     if (res.success) {
       this.showToast('Lưu thành công!', 'success');
-      Cache.remove('medpro_cache_protocol_');
+      Cache.clear();
+      state.allData = null;
+      this._preloadPromise = null;
       state.adminEditItem = 'none';
       state.adminProtocols = null;
       this.renderAdminTab();
@@ -1486,16 +1531,9 @@ const App = {
       this.hideLoading();
       if (res?.success) {
         this.showToast('Đã xoá thành công!', 'success');
-        if (type === 'dept') {
-          Cache.remove('medpro_cache_depts');
-          Cache.remove('medpro_cache_conditions_');
-          Cache.remove('medpro_cache_protocol_');
-        } else if (type === 'condition') {
-          Cache.remove('medpro_cache_conditions_');
-          Cache.remove('medpro_cache_protocol_');
-        } else if (type === 'protocol') {
-          Cache.remove('medpro_cache_protocol_');
-        }
+        Cache.clear();
+        state.allData = null;
+        this._preloadPromise = null;
         state.adminEditItem = 'none';
         this.renderAdminTab();
       } else {
