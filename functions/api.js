@@ -174,18 +174,18 @@ async function handleGet(action, searchParams, db) {
 // Khởi tạo database ban đầu
 async function setupDb(db) {
   try {
-    // 1. Tạo các bảng
-    await db.exec(`
-      CREATE TABLE IF NOT EXISTS Departments (
+    // 1. Tạo các bảng bằng cách thực thi từng câu lệnh SQLite riêng biệt
+    // Điều này tránh lỗi phân tích dòng mới (incomplete input SQLITE_ERROR) của Cloudflare D1.
+    const queries = [
+      `CREATE TABLE IF NOT EXISTS Departments (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         description TEXT,
         color TEXT,
         sortOrder INTEGER DEFAULT 0,
         active INTEGER DEFAULT 1
-      );
-
-      CREATE TABLE IF NOT EXISTS Conditions (
+      )`,
+      `CREATE TABLE IF NOT EXISTS Conditions (
         id TEXT PRIMARY KEY,
         deptId TEXT,
         name TEXT NOT NULL,
@@ -194,9 +194,8 @@ async function setupDb(db) {
         sortOrder INTEGER DEFAULT 0,
         active INTEGER DEFAULT 1,
         FOREIGN KEY(deptId) REFERENCES Departments(id) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS Protocols (
+      )`,
+      `CREATE TABLE IF NOT EXISTS Protocols (
         id TEXT PRIMARY KEY,
         condId TEXT,
         dayLabel TEXT,
@@ -208,18 +207,20 @@ async function setupDb(db) {
         careLevel TEXT,
         sortOrder INTEGER DEFAULT 0,
         FOREIGN KEY(condId) REFERENCES Conditions(id) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS AdminConfig (
+      )`,
+      `CREATE TABLE IF NOT EXISTS AdminConfig (
         key TEXT PRIMARY KEY,
         value TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS Tokens (
+      )`,
+      `CREATE TABLE IF NOT EXISTS Tokens (
         token TEXT PRIMARY KEY,
         expiry TEXT
-      );
-    `);
+      )`
+    ];
+
+    for (const q of queries) {
+      await db.prepare(q).run();
+    }
 
     // 2. Khởi tạo mật khẩu admin mặc định 'bvps123' nếu chưa có
     const storedHash = await db.prepare(
