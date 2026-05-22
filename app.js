@@ -7,9 +7,8 @@
    CONFIGURATION — THAY URL APPS SCRIPT VÀO ĐÂY
    ================================================================ */
 const CONFIG = {
-  // ✅ Sau khi deploy Cloudflare Worker, copy URL vào đây
-  // URL có dạng: https://medprotocol-api.TÊN_BẠN.workers.dev
-  SCRIPT_URL: 'https://medprotocol-api.longcntt25.workers.dev',
+  // Đường dẫn API nội bộ thông qua Cloudflare Pages Functions
+  SCRIPT_URL: '/api',
   ADMIN_TOKEN_KEY: 'medpro_admin_token',
   VERSION: '2.0.0'
 };
