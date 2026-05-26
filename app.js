@@ -1487,10 +1487,63 @@ const App = {
      ================================================================ */
   confirmDelete(type, id, name) {
     const titles = { dept: 'Xoá Khoa', condition: 'Xoá Bệnh Lý', protocol: 'Xoá Giai Đoạn' };
-    document.getElementById('modal-title').textContent = titles[type] || 'Xoá';
-    document.getElementById('modal-msg').textContent   = `Bạn có chắc muốn xoá "${name}"? Hành động này không thể hoàn tác.`;
+    const modalTitle = document.getElementById('modal-title');
+    const modalMsg = document.getElementById('modal-msg');
+    const modalConfirm = document.getElementById('modal-confirm');
+
+    modalTitle.textContent = titles[type] || 'Xoá';
+    modalConfirm.className = 'btn btn-danger';
+
+    let clickCount = 0;
+
+    const updateModalContent = () => {
+      if (type === 'dept') {
+        if (clickCount === 0) {
+          modalMsg.innerHTML = `
+            <div style="text-align: left;">
+              <span style="color: var(--danger); font-weight: bold; display: block; margin-bottom: 8px; font-size: 1.05rem;">⚠️ CẢNH BÁO: XÓA KHOA SẼ MẤT TOÀN BỘ BỆNH LÝ VÀ MẪU PHIẾU CỦA KHOA NÀY!</span>
+              Vui lòng kiểm tra thật kỹ để tránh nhầm khoa. Bạn đang chuẩn bị xóa khoa: <strong style="color: var(--danger); text-decoration: underline;">"${escHtml(name)}"</strong>.<br><br>
+              Nếu phát hiện nhầm lẫn, hãy nhấn nút <strong style="color: var(--primary);">Thoát</strong> để hủy quá trình.<br>
+              Nếu không sai, nhấn <strong style="color: var(--danger);">Xác nhận (lần 1/3)</strong> để tiếp tục.
+            </div>
+          `;
+          modalConfirm.textContent = 'Xác nhận (1/3)';
+        } else if (clickCount === 1) {
+          modalMsg.innerHTML = `
+            <div style="text-align: left;">
+              <span style="color: var(--danger); font-weight: bold; display: block; margin-bottom: 8px; font-size: 1.05rem;">⚠️ XÁC NHẬN LẦN 2: BẠN CÓ CHẮC CHẮN MUỐN XÓA KHOA "${escHtml(name.toUpperCase())}"?</span>
+              Hành động này <strong>không thể hoàn tác</strong> và sẽ xóa sạch mọi cấu hình liên quan đến khoa này.<br><br>
+              Nếu phát hiện nhầm lẫn, hãy nhấn nút <strong style="color: var(--primary);">Thoát</strong> để hủy quá trình.<br>
+              Nếu không sai, nhấn <strong style="color: var(--danger);">Xác nhận (lần 2/3)</strong> để tiếp tục.
+            </div>
+          `;
+          modalConfirm.textContent = 'Xác nhận (2/3)';
+        } else if (clickCount === 2) {
+          modalMsg.innerHTML = `
+            <div style="text-align: left;">
+              <span style="color: var(--danger); font-weight: bold; display: block; margin-bottom: 8px; font-size: 1.05rem;">⚠️ XÁC NHẬN LẦN CUỐI: KHÔNG THỂ PHỤC HỒI DỮ LIỆU!</span>
+              Kiểm tra kỹ tên khoa lần cuối: <strong style="color: var(--danger);">"${escHtml(name)}"</strong>.<br><br>
+              Nếu phát hiện nhầm lẫn, hãy nhấn nút <strong style="color: var(--primary);">Thoát</strong> để hủy quá trình.<br>
+              Nhấn <strong style="color: var(--danger);">THỰC SỰ XÓA (3/3)</strong> để thực hiện xóa.
+            </div>
+          `;
+          modalConfirm.textContent = 'THỰC SỰ XÓA (3/3)';
+        }
+      } else {
+        modalMsg.textContent = `Bạn có chắc muốn xoá "${name}"? Hành động này không thể hoàn tác.`;
+        modalConfirm.textContent = 'Xác nhận';
+      }
+    };
+
+    updateModalContent();
 
     state.modalCallback = async () => {
+      if (type === 'dept' && clickCount < 2) {
+        clickCount++;
+        updateModalContent();
+        return;
+      }
+
       this.closeModal();
       this.showLoading('Đang xoá...');
       let res;
