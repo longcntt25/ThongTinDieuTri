@@ -1740,6 +1740,7 @@ const App = {
       overlay.id = 'admin-dept-select-overlay';
       overlay.className = 'modal-overlay';
       overlay.style.zIndex = '999';
+      overlay.onclick = () => App.closeAdminDeptPopup();
       document.body.appendChild(overlay);
     }
     overlay.classList.remove('hidden');
@@ -1747,9 +1748,12 @@ const App = {
     const depts = state.adminDepts || [];
 
     overlay.innerHTML = `
-      <div class="modal-box" style="max-width: 440px;" onclick="event.stopPropagation()">
+      <div class="modal-box" style="max-width: 440px; position: relative;" onclick="event.stopPropagation()">
+        <!-- Nút đóng (X) -->
+        <button onclick="App.closeAdminDeptPopup()" style="position: absolute; right: 15px; top: 15px; background: none; border: none; font-size: 1.5rem; font-weight: 700; color: var(--text-muted); cursor: pointer; padding: 4px; line-height: 1;">&times;</button>
+
         <h3 class="modal-title" style="font-size: 1.1rem; color: var(--primary);">Chọn Khoa làm việc</h3>
-        <p class="modal-msg" style="margin-bottom: 15px; font-size: 0.85rem; line-height: 1.4;">Vui lòng Chọn Khoa sẵn có từ danh sách <strong>HOẶC</strong> nhập tên để Tạo Khoa mới. Bạn phải chọn 1 trong 2 để quản lý dữ liệu.</p>
+        <p class="modal-msg" style="margin-bottom: 15px; font-size: 0.85rem; line-height: 1.4; padding-right: 20px;">Vui lòng Chọn Khoa sẵn có từ danh sách <strong>HOẶC</strong> nhập tên để Tạo Khoa mới để quản lý dữ liệu.</p>
         
         <div style="display: flex; flex-direction: column; gap: 15px;">
           <!-- HƯỚNG 1: Chọn khoa sẵn có -->
@@ -1781,6 +1785,25 @@ const App = {
       </div>
     `;
     this.initCustomSelects();
+  },
+
+  closeAdminDeptPopup() {
+    const overlay = document.getElementById('admin-dept-select-overlay');
+    if (overlay) overlay.classList.add('hidden');
+
+    // Nếu chưa có khoa nào được chọn và không ở tab cài đặt, hiển thị thông báo yêu cầu chọn khoa
+    if (!state.adminSelectedDeptId && state.adminView !== 'settings') {
+      const content = document.getElementById('admin-content');
+      if (content) {
+        content.innerHTML = `
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 48px; height: 48px; margin: 0 auto 12px; opacity: 0.4;"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+            <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 15px;">Bạn chưa chọn Khoa làm việc để quản lý dữ liệu.</p>
+            <button class="btn btn-primary btn-sm" onclick="App.showAdminDeptPopup()">Chọn hoặc Tạo Khoa ngay</button>
+          </div>
+        `;
+      }
+    }
   },
 
   async confirmAdminDeptSelection() {
