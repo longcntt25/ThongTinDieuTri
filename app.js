@@ -776,8 +776,8 @@ const App = {
   renderAdmin() {
     if (!state.adminToken) { return this.renderAdminLogin(); }
 
-    const tabs = ['conditions', 'protocols', 'settings'];
-    const tabLabels = { conditions: 'Bệnh Lý', protocols: 'Mẫu Phiếu', settings: 'Cài Đặt' };
+    const tabs = ['conditions', 'protocols'];
+    const tabLabels = { conditions: 'Bệnh Lý', protocols: 'Mẫu Phiếu' };
 
     const activeDept = state.adminDepts ? state.adminDepts.find(d => d.id === state.adminSelectedDeptId) : null;
     const deptName = activeDept ? activeDept.name : 'Chưa chọn';
@@ -972,59 +972,78 @@ const App = {
       : `<div style="background: var(--primary-light); color: var(--primary); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 16px; font-weight: 700; font-size: 0.85rem; border-left: 4px solid var(--primary);">BẠN ĐANG CHỈNH SỬA BỆNH LÝ: ${escHtml(cond?.name)}</div>`;
 
     return `
-      <div class="admin-form-panel" style="border: 2px solid ${formThemeColor}; box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
-        ${formStatusBanner}
-        <div class="admin-form-title" style="color: ${formThemeColor}; margin-bottom: var(--space-base);">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px">
-            ${isNew ? '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>' : '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>'}
-          </svg>
-          ${formTitle}
+      <div class="modal-overlay" style="z-index: 1000;" onclick="App.cancelEdit()">
+        <div class="modal-box" style="max-width: 500px; border: 2px solid ${formThemeColor}; padding: var(--space-lg); position: relative; text-align: left; box-shadow: var(--shadow-lg);" onclick="event.stopPropagation()">
+          
+          <!-- Nút đóng (X) -->
+          <button onclick="App.cancelEdit()" style="position: absolute; right: 15px; top: 15px; background: none; border: none; font-size: 1.5rem; font-weight: 700; color: var(--text-muted); cursor: pointer; padding: 4px; line-height: 1;">&times;</button>
+          
+          ${formStatusBanner}
+          <div class="admin-form-title" style="color: ${formThemeColor}; margin-bottom: var(--space-base);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px">
+              ${isNew ? '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>' : '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>'}
+            </svg>
+            ${formTitle}
+          </div>
+          <form onsubmit="App.saveConditionForm(event)">
+            <input type="hidden" id="cf-id"     value="${escHtml(cond?.id || '')}" />
+            <div class="form-group">
+              <label class="form-label">Khoa</label>
+              <div class="form-input" style="background: var(--bg); font-weight: 600; color: var(--text-secondary); border-color: var(--border-strong);">${escHtml(activeDept?.name || '')}</div>
+              <input type="hidden" id="cf-dept" value="${escHtml(state.adminSelectedDeptId)}" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tên Bệnh Lý <span class="req">*</span></label>
+              <input type="text" id="cf-name" class="form-input" value="${escHtml(cond?.name || '')}" required placeholder="VD: Dọa đẻ non" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mô tả ngắn</label>
+              <input type="text" id="cf-desc" class="form-input" value="${escHtml(cond?.shortDesc || '')}" placeholder="Mô tả ngắn gọn" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mức độ</label>
+              <select id="cf-severity" class="form-select">
+                <option value="low"    ${cond?.severity === 'low'    ? 'selected' : ''}>Thấp</option>
+                <option value="medium" ${cond?.severity === 'medium' ? 'selected' : ''}>Trung bình</option>
+                <option value="high"   ${cond?.severity === 'high'   ? 'selected' : ''}>Cao</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Thứ tự</label>
+              <input type="number" id="cf-order" class="form-input" value="${escHtml(String(cond?.sortOrder || 1))}" min="1" style="max-width:120px" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Trạng thái</label>
+              <select id="cf-active" class="form-select">
+                <option value="TRUE"  ${!cond || cond?.active === true || String(cond?.active).toUpperCase() === 'TRUE' ? 'selected' : ''}>Hiển thị</option>
+                <option value="FALSE" ${String(cond?.active).toUpperCase() === 'FALSE' ? 'selected' : ''}>Ẩn</option>
+              </select>
+            </div>
+            <div class="admin-form-actions" style="justify-content: flex-end; gap: var(--space-sm);">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="App.cancelEdit()">Thoát</button>
+              <button type="submit" class="btn btn-primary btn-sm">Lưu</button>
+            </div>
+          </form>
         </div>
-        <form onsubmit="App.saveConditionForm(event)">
-          <input type="hidden" id="cf-id"     value="${escHtml(cond?.id || '')}" />
-          <div class="form-group">
-            <label class="form-label">Khoa</label>
-            <div class="form-input" style="background: var(--bg); font-weight: 600; color: var(--text-secondary); border-color: var(--border-strong);">${escHtml(activeDept?.name || '')}</div>
-            <input type="hidden" id="cf-dept" value="${escHtml(state.adminSelectedDeptId)}" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Tên Bệnh Lý <span class="req">*</span></label>
-            <input type="text" id="cf-name" class="form-input" value="${escHtml(cond?.name || '')}" required placeholder="VD: Dọa đẻ non" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Mô tả ngắn</label>
-            <input type="text" id="cf-desc" class="form-input" value="${escHtml(cond?.shortDesc || '')}" placeholder="Mô tả ngắn gọn" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Mức độ</label>
-            <select id="cf-severity" class="form-select">
-              <option value="low"    ${cond?.severity === 'low'    ? 'selected' : ''}>Thấp</option>
-              <option value="medium" ${cond?.severity === 'medium' ? 'selected' : ''}>Trung bình</option>
-              <option value="high"   ${cond?.severity === 'high'   ? 'selected' : ''}>Cao</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Thứ tự</label>
-            <input type="number" id="cf-order" class="form-input" value="${escHtml(String(cond?.sortOrder || 1))}" min="1" style="max-width:120px" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Trạng thái</label>
-            <select id="cf-active" class="form-select">
-              <option value="TRUE"  ${!cond || cond?.active === true || String(cond?.active).toUpperCase() === 'TRUE' ? 'selected' : ''}>Hiển thị</option>
-              <option value="FALSE" ${String(cond?.active).toUpperCase() === 'FALSE' ? 'selected' : ''}>Ẩn</option>
-            </select>
-          </div>
-          <div class="admin-form-actions">
-            <button type="submit" class="btn btn-primary btn-sm">Lưu</button>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="App.cancelEdit()">Huỷ</button>
-          </div>
-        </form>
       </div>
     `;
   },
 
   editCondition(condObj) {
     const cond = typeof condObj === 'string' ? JSON.parse(condObj) : condObj;
+    if (cond) {
+      if (state.adminEditItem && state.adminEditItem !== 'none' && state.adminEditItem.id === cond.id) {
+        state.adminEditItem = 'none';
+        this.renderAdminTab();
+        return;
+      }
+    } else {
+      if (state.adminEditItem === null) {
+        state.adminEditItem = 'none';
+        this.renderAdminTab();
+        return;
+      }
+    }
     state.adminEditItem = cond;
     this.renderAdminTab();
   },
@@ -1167,57 +1186,77 @@ const App = {
       : `<div style="background: var(--primary-light); color: var(--primary); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 16px; font-weight: 700; font-size: 0.85rem; border-left: 4px solid var(--primary);">BẠN ĐANG CHỈNH SỬA GIAI ĐOẠN: ${escHtml(proto?.dayLabel)}</div>`;
 
     return `
-      <div class="admin-form-panel" style="border: 2px solid ${formThemeColor}; box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
-        ${formStatusBanner}
-        <div class="admin-form-title" style="color: ${formThemeColor}; margin-bottom: var(--space-base);">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px">
-            ${isNew ? '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>' : '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>'}
-          </svg>
-          ${formTitle}
-        </div>
-        <form onsubmit="App.saveProtocolForm(event)">
-          <input type="hidden" id="pf-id"     value="${escHtml(proto?.id || '')}" />
-          <input type="hidden" id="pf-condid" value="${escHtml(state.adminFilterCond)}" />
+      <div class="modal-overlay" style="z-index: 1000;" onclick="App.cancelEdit()">
+        <div class="modal-box" style="max-width: 650px; border: 2px solid ${formThemeColor}; padding: var(--space-lg); position: relative; text-align: left; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);" onclick="event.stopPropagation()">
           
-          <div class="form-group">
-            <label class="form-label">Tên giai đoạn <span class="req">*</span></label>
-            <input type="text" id="pf-day" class="form-input" value="${escHtml(proto?.dayLabel || '')}"
-                   required placeholder="VD: Ngày 1, Ngày 2-3, Xuất viện..." />
+          <!-- Nút đóng (X) -->
+          <button onclick="App.cancelEdit()" style="position: absolute; right: 15px; top: 15px; background: none; border: none; font-size: 1.5rem; font-weight: 700; color: var(--text-muted); cursor: pointer; padding: 4px; line-height: 1;">&times;</button>
+          
+          ${formStatusBanner}
+          <div class="admin-form-title" style="color: ${formThemeColor}; margin-bottom: var(--space-base);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px">
+              ${isNew ? '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>' : '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>'}
+            </svg>
+            ${formTitle}
           </div>
-
-          <div class="form-group">
-            <label class="form-label" style="font-weight: 700;">Các Phân Mục Chi Tiết</label>
+          <form onsubmit="App.saveProtocolForm(event)">
+            <input type="hidden" id="pf-id"     value="${escHtml(proto?.id || '')}" />
+            <input type="hidden" id="pf-condid" value="${escHtml(state.adminFilterCond)}" />
             
-            <div id="protocol-sections-container">
-              <!-- Các phân mục động được chèn tại đây -->
+            <div class="form-group">
+              <label class="form-label">Tên giai đoạn <span class="req">*</span></label>
+              <input type="text" id="pf-day" class="form-input" value="${escHtml(proto?.dayLabel || '')}"
+                     required placeholder="VD: Ngày 1, Ngày 2-3, Xuất viện..." />
             </div>
 
-            <button type="button" class="btn btn-ghost btn-sm" onclick="App.addFormSection()" style="margin-top: 8px; border: 1px dashed var(--text-secondary); width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Thêm phân mục mới
-            </button>
-          </div>
+            <div class="form-group">
+              <label class="form-label" style="font-weight: 700;">Các Phân Mục Chi Tiết</label>
+              
+              <div id="protocol-sections-container">
+                <!-- Các phân mục động được chèn tại đây -->
+              </div>
 
-          <div class="form-group">
-            <label class="form-label">Cấp Độ Chăm Sóc</label>
-            <input type="text" id="pf-care" class="form-input" value="${escHtml(proto?.careLevel || '')}" placeholder="VD: Cấp 1, Cấp 2, Cấp 3" />
-          </div>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="App.addFormSection()" style="margin-top: 8px; border: 1px dashed var(--text-secondary); width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Thêm phân mục mới
+              </button>
+            </div>
 
-          <div class="form-group">
-            <label class="form-label">Thứ tự</label>
-            <input type="number" id="pf-order" class="form-input" value="${escHtml(String(proto?.sortOrder || (state.adminProtocols?.length + 1) || 1))}" min="1" style="max-width:120px" />
-          </div>
+            <div class="form-group">
+              <label class="form-label">Cấp Độ Chăm Sóc</label>
+              <input type="text" id="pf-care" class="form-input" value="${escHtml(proto?.careLevel || '')}" placeholder="VD: Cấp 1, Cấp 2, Cấp 3" />
+            </div>
 
-          <div class="admin-form-actions">
-            <button type="submit" class="btn btn-primary btn-sm">Lưu Mẫu Phiếu</button>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="App.cancelEdit()">Huỷ</button>
-          </div>
-        </form>
+            <div class="form-group">
+              <label class="form-label">Thứ tự</label>
+              <input type="number" id="pf-order" class="form-input" value="${escHtml(String(proto?.sortOrder || (state.adminProtocols?.length + 1) || 1))}" min="1" style="max-width:120px" />
+            </div>
+
+            <div class="admin-form-actions" style="justify-content: flex-end; gap: var(--space-sm);">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="App.cancelEdit()">Thoát</button>
+              <button type="submit" class="btn btn-primary btn-sm">Lưu Mẫu Phiếu</button>
+            </div>
+          </form>
+        </div>
       </div>
     `;
   },
 
   async editProtocol(protoId) {
+    if (protoId) {
+      if (state.adminEditItem && state.adminEditItem !== 'none' && state.adminEditItem.id === protoId) {
+        state.adminEditItem = 'none';
+        await this.renderAdminTab();
+        return;
+      }
+    } else {
+      if (state.adminEditItem && state.adminEditItem !== 'none' && state.adminEditItem.id === '') {
+        state.adminEditItem = 'none';
+        await this.renderAdminTab();
+        return;
+      }
+    }
+
     let proto = null;
     if (protoId) {
       proto = (state.adminProtocols || []).find(p => p.id === protoId);
@@ -1227,13 +1266,7 @@ const App = {
 
     let sections;
     if (!protoId || !proto) {
-      sections = [
-        { title: 'Thăm Khám, Đánh Giá', content: '' },
-        { title: 'Cận Lâm Sàng',           content: '' },
-        { title: 'Điều Trị',                  content: '' },
-        { title: 'Dinh Dưỡng & Sinh Hoạt',   content: '' },
-        { title: 'Truyền Thông',              content: '' }
-      ];
+      sections = [];
     } else {
       sections = parseProtocolSections(proto);
     }
@@ -1647,37 +1680,37 @@ const App = {
     const depts = state.adminDepts || [];
 
     overlay.innerHTML = `
-      <div class="modal-box" style="max-width: 440px; position: relative;" onclick="event.stopPropagation()">
+      <div class="modal-box" style="max-width: 460px; position: relative;" onclick="event.stopPropagation()">
         <!-- Nút đóng (X) -->
         <button onclick="App.closeAdminDeptPopup()" style="position: absolute; right: 15px; top: 15px; background: none; border: none; font-size: 1.5rem; font-weight: 700; color: var(--text-muted); cursor: pointer; padding: 4px; line-height: 1;">&times;</button>
 
-        <h3 class="modal-title" style="font-size: 1.1rem; color: var(--primary);">Chọn Khoa làm việc</h3>
-        <p class="modal-msg" style="margin-bottom: 15px; font-size: 0.85rem; line-height: 1.4; padding-right: 20px;">Vui lòng Chọn Khoa sẵn có từ danh sách <strong>HOẶC</strong> nhập tên để Tạo Khoa mới để quản lý dữ liệu.</p>
+        <h3 class="modal-title" style="font-size: 1.2rem; color: var(--primary); margin-bottom: 8px;">Chọn Khoa làm việc</h3>
+        <p class="modal-msg" style="margin-bottom: 20px; font-size: 0.85rem; line-height: 1.4; padding-right: 20px;">Vui lòng Chọn Khoa sẵn có từ danh sách <strong>HOẶC</strong> nhập tên để Tạo Khoa mới để quản lý dữ liệu.</p>
         
         <div style="display: flex; flex-direction: column; gap: 15px;">
           <!-- HƯỚNG 1: Chọn khoa sẵn có -->
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-weight: 700; color: var(--text);">HƯỚNG 1: Chọn Khoa sẵn có</label>
-            <select id="pop-select-dept" class="form-select">
-              <option value="">-- Chọn Khoa --</option>
-              ${depts.map(d => `<option value="${escHtml(d.id)}">${escHtml(d.name)}</option>`).join('')}
-            </select>
-          </div>
-
-          <div style="text-align: center; color: var(--text-muted); font-weight: 800; font-size: 0.75rem; margin: 2px 0;">
-            - HOẶC -
+          <div style="background: var(--primary-xlight); border: 1.5px solid var(--border); border-left: 5px solid var(--primary); padding: 16px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 800; color: var(--primary); font-size: 0.9rem; margin-bottom: 8px; display: block;">LỰA CHỌN 1: Chọn Khoa Sẵn Có</label>
+              <select id="pop-select-dept" class="form-select" style="background-color: var(--bg-white);">
+                <option value="">-- Chọn Khoa từ danh sách --</option>
+                ${depts.map(d => `<option value="${escHtml(d.id)}">${escHtml(d.name)}</option>`).join('')}
+              </select>
+            </div>
           </div>
 
           <!-- HƯỚNG 2: Tạo khoa mới -->
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-weight: 700; color: var(--text);">HƯỚNG 2: Tạo Khoa mới</label>
-            <input type="text" id="pop-new-dept-name" class="form-input" placeholder="Nhập tên khoa mới (VD: Khoa Sản 3)" />
+          <div style="background: var(--success-light); border: 1.5px solid var(--success-light); border-left: 5px solid var(--success); padding: 16px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 800; color: var(--success); font-size: 0.9rem; margin-bottom: 8px; display: block;">LỰA CHỌN 2: Tạo Khoa Mới</label>
+              <input type="text" id="pop-new-dept-name" class="form-input" placeholder="Nhập tên khoa mới (VD: Khoa Sản 3)" style="background-color: var(--bg-white);" />
+            </div>
           </div>
 
           <div id="pop-error" class="hidden" style="color: var(--danger); font-size: 0.8rem; font-weight: 700; padding: 4px 0;"></div>
 
           <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
-            <button class="btn btn-ghost btn-sm" onclick="App.navigate('home')">Về trang chủ</button>
+            <button class="btn btn-ghost btn-sm" onclick="App.closeAdminDeptPopup()">Thoát</button>
             <button class="btn btn-primary btn-sm" onclick="App.confirmAdminDeptSelection()">Xác nhận</button>
           </div>
         </div>
