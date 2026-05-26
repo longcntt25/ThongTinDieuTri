@@ -1512,7 +1512,7 @@ const App = {
         
         // Nếu xóa đúng khoa đang chọn, yêu cầu chọn lại khoa
         if (!state.adminSelectedDeptId && state.adminView !== 'settings') {
-          await this.loadAdminData();
+          this.render();
         } else {
           this.renderAdminTab();
         }
