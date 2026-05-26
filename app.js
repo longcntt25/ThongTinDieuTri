@@ -1680,38 +1680,61 @@ const App = {
     const depts = state.adminDepts || [];
 
     overlay.innerHTML = `
-      <div class="modal-box" style="max-width: 460px; position: relative;" onclick="event.stopPropagation()">
+      <div class="modal-box" style="max-width: 480px; padding: 28px; position: relative;" onclick="event.stopPropagation()">
         <!-- Nút đóng (X) -->
-        <button onclick="App.closeAdminDeptPopup()" style="position: absolute; right: 15px; top: 15px; background: none; border: none; font-size: 1.5rem; font-weight: 700; color: var(--text-muted); cursor: pointer; padding: 4px; line-height: 1;">&times;</button>
+        <button class="modal-close-btn" onclick="App.closeAdminDeptPopup()" aria-label="Đóng">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px;">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
 
-        <h3 class="modal-title" style="font-size: 1.2rem; color: var(--primary); margin-bottom: 8px;">Chọn Khoa làm việc</h3>
-        <p class="modal-msg" style="margin-bottom: 20px; font-size: 0.85rem; line-height: 1.4; padding-right: 20px;">Vui lòng Chọn Khoa sẵn có từ danh sách <strong>HOẶC</strong> nhập tên để Tạo Khoa mới để quản lý dữ liệu.</p>
+        <h3 class="modal-title" style="font-size: 1.3rem; color: var(--primary); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 22px; height: 22px; color: var(--primary);">
+            <rect x="3" y="3" width="18" height="18" rx="3" />
+            <path d="M3 9h18" />
+            <path d="M9 21V9" />
+          </svg>
+          Chọn Khoa Làm Việc
+        </h3>
+        <p class="modal-msg" style="margin-bottom: 24px; font-size: 0.85rem; line-height: 1.5; color: var(--text-secondary);">
+          Vui lòng chọn một khoa đã cấu hình hoặc tạo một khoa mới dưới đây để bắt đầu quản lý dữ liệu.
+        </p>
         
-        <div style="display: flex; flex-direction: column; gap: 15px;">
-          <!-- HƯỚNG 1: Chọn khoa sẵn có -->
-          <div style="background: var(--primary-xlight); border: 1.5px solid var(--border); border-left: 5px solid var(--primary); padding: 16px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
-            <div class="form-group" style="margin-bottom: 0;">
-              <label class="form-label" style="font-weight: 800; color: var(--primary); font-size: 0.9rem; margin-bottom: 8px; display: block;">LỰA CHỌN 1: Chọn Khoa Sẵn Có</label>
-              <select id="pop-select-dept" class="form-select" style="background-color: var(--bg-white);">
-                <option value="">-- Chọn Khoa từ danh sách --</option>
-                ${depts.map(d => `<option value="${escHtml(d.id)}">${escHtml(d.name)}</option>`).join('')}
-              </select>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <!-- LỰA CHỌN 1: Chọn khoa sẵn có -->
+          <div class="dept-select-card choice-select">
+            <div class="dept-select-card-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px;">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+              <span>LỰA CHỌN 1: CHỌN KHOA SẴN CÓ</span>
             </div>
+            <select id="pop-select-dept" class="form-select" style="background-color: var(--bg-white); border-color: var(--border-strong); height: 42px;">
+              <option value="">-- Chọn Khoa từ danh sách --</option>
+              ${depts.map(d => `<option value="${escHtml(d.id)}">${escHtml(d.name)}</option>`).join('')}
+            </select>
           </div>
 
-          <!-- HƯỚNG 2: Tạo khoa mới -->
-          <div style="background: var(--success-light); border: 1.5px solid var(--success-light); border-left: 5px solid var(--success); padding: 16px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
-            <div class="form-group" style="margin-bottom: 0;">
-              <label class="form-label" style="font-weight: 800; color: var(--success); font-size: 0.9rem; margin-bottom: 8px; display: block;">LỰA CHỌN 2: Tạo Khoa Mới</label>
-              <input type="text" id="pop-new-dept-name" class="form-input" placeholder="Nhập tên khoa mới (VD: Khoa Sản 3)" style="background-color: var(--bg-white);" />
+          <!-- LỰA CHỌN 2: Tạo khoa mới -->
+          <div class="dept-select-card choice-create">
+            <div class="dept-select-card-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px;">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="16" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+              </svg>
+              <span>LỰA CHỌN 2: TẠO KHOA LÀM VIỆC MỚI</span>
             </div>
+            <input type="text" id="pop-new-dept-name" class="form-input" placeholder="Nhập tên khoa mới (VD: Khoa Sản 3)" style="background-color: var(--bg-white); border-color: var(--border-strong); height: 42px;" />
           </div>
 
           <div id="pop-error" class="hidden" style="color: var(--danger); font-size: 0.8rem; font-weight: 700; padding: 4px 0;"></div>
 
-          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
-            <button class="btn btn-ghost btn-sm" onclick="App.closeAdminDeptPopup()">Thoát</button>
-            <button class="btn btn-primary btn-sm" onclick="App.confirmAdminDeptSelection()">Xác nhận</button>
+          <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
+            <button class="btn btn-ghost" style="padding: 10px 20px; font-weight: 600;" onclick="App.closeAdminDeptPopup()">Thoát</button>
+            <button class="btn btn-primary" style="padding: 10px 24px; font-weight: 600; box-shadow: 0 4px 12px rgba(45,43,140,0.2);" onclick="App.confirmAdminDeptSelection()">Xác nhận</button>
           </div>
         </div>
       </div>
