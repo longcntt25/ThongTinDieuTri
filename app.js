@@ -1266,7 +1266,7 @@ const App = {
 
     let sections;
     if (!protoId || !proto) {
-      sections = [];
+      sections = [{ title: '', content: '' }];
     } else {
       sections = parseProtocolSections(proto);
     }
