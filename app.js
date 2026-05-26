@@ -1750,6 +1750,9 @@ const App = {
     if (selectVal) {
       state.adminSelectedDeptId = selectVal;
       state.adminFilterDept = selectVal;
+      state.adminFilterCond = '';
+      state.adminProtocols = null;
+      state.adminEditItem = 'none';
       
       const overlay = document.getElementById('admin-dept-select-overlay');
       if (overlay) overlay.classList.add('hidden');
@@ -1783,6 +1786,9 @@ const App = {
       if (res.success) {
         state.adminSelectedDeptId = res.id;
         state.adminFilterDept = res.id;
+        state.adminFilterCond = '';
+        state.adminProtocols = null;
+        state.adminEditItem = 'none';
         
         Cache.clear();
         state.allData = null;
