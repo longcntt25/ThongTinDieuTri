@@ -826,6 +826,9 @@ const App = {
   },
 
   async loadAdminData() {
+    // Nếu chưa đăng nhập thành công thì không chạy logic tải dữ liệu và hiện popup chọn khoa
+    if (!state.adminToken) return;
+
     this.showLoading('Đang tải cấu hình...');
     const res = await API.getDepts();
     this.hideLoading();
