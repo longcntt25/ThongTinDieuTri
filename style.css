@@ -1126,6 +1126,15 @@ a { color: inherit; text-decoration: none; }
   position: relative;
   overflow: visible;
   box-shadow: var(--shadow-sm);
+  z-index: 1;
+}
+
+.dept-select-card:has(.custom-select-wrapper.open) {
+  z-index: 10 !important;
+}
+
+.dept-select-card:focus-within {
+  z-index: 5;
 }
 
 .dept-select-card::before {
