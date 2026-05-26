@@ -27,7 +27,7 @@ const state = {
   activeDay:         0,           // Index tab ngày đang xem
   adminToken:        null,
   adminView:         'conditions',// Tab admin mặc định là Bệnh Lý
-  adminEditItem:     null,        // Item đang sửa trong admin
+  adminEditItem:     'none',      // Item đang sửa trong admin
   adminFilterDept:   '',          // Filter khoa trong admin protocol
   adminFilterCond:   '',          // Filter bệnh trong admin protocol
   adminDepts:        null,        // Cache danh sách cho admin
@@ -856,7 +856,7 @@ const App = {
 
   switchAdminTab(tab) {
     state.adminView = tab;
-    state.adminEditItem = null;
+    state.adminEditItem = 'none';
 
     // Nếu chưa chọn khoa và bấm sang tab quản lý khác
     if (!state.adminSelectedDeptId && tab !== 'settings') {
@@ -917,52 +917,68 @@ const App = {
         </div>
         <button class="btn btn-primary btn-sm" onclick="App.editCondition(null)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Thêm mới
+          Thêm Bệnh Lý Mới
         </button>
       </div>
 
-      ${editing !== undefined && editing !== 'none' ? this.renderConditionForm(editing) : ''}
-
-      <div class="admin-list">
+      <div class="admin-list" style="margin-bottom: var(--space-xl);">
         ${!state.adminConditions.length ? `
           <div class="empty-state">
             <p>Chưa có bệnh lý nào cho khoa này.</p>
           </div>
-        ` : state.adminConditions.map(c => `
-          <div class="admin-list-item">
-            <div class="admin-list-item-body">
-              <div class="admin-list-item-title">${escHtml(c.name)}</div>
-              <div class="admin-list-item-meta">
-                ${escHtml(c.shortDesc || '')}
-                &nbsp;·&nbsp;
-                <span class="${severityClass(c.severity)}">${severityLabel(c.severity)}</span>
-                &nbsp;·&nbsp;
-                <span class="status-badge ${c.active === true || String(c.active).toUpperCase() === 'TRUE' ? 'status-active' : 'status-inactive'}">
-                  ${c.active === true || String(c.active).toUpperCase() === 'TRUE' ? 'Hiển thị' : 'Ẩn'}
-                </span>
+        ` : state.adminConditions.map(c => {
+          const isEditing = editing && editing !== 'none' && editing.id === c.id;
+          return `
+            <div class="admin-list-item ${isEditing ? 'active-edit' : ''}" onclick="App.editCondition(${escHtml(JSON.stringify(c))})">
+              <div class="admin-list-item-body">
+                <div class="admin-list-item-title" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  ${escHtml(c.name)}
+                  ${isEditing ? `<span class="badge" style="background: var(--primary); color: var(--bg-white); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 0.75rem;">Đang sửa</span>` : ''}
+                </div>
+                <div class="admin-list-item-meta">
+                  ${escHtml(c.shortDesc || '')}
+                  &nbsp;·&nbsp;
+                  <span class="${severityClass(c.severity)}">${severityLabel(c.severity)}</span>
+                  &nbsp;·&nbsp;
+                  <span class="status-badge ${c.active === true || String(c.active).toUpperCase() === 'TRUE' ? 'status-active' : 'status-inactive'}">
+                    ${c.active === true || String(c.active).toUpperCase() === 'TRUE' ? 'Hiển thị' : 'Ẩn'}
+                  </span>
+                </div>
+              </div>
+              <div class="admin-list-item-actions">
+                <button class="btn btn-ghost btn-sm btn-icon" onclick="event.stopPropagation(); App.editCondition(${escHtml(JSON.stringify(c))})">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="btn btn-ghost btn-sm btn-icon" style="color:var(--danger)" onclick="event.stopPropagation(); App.confirmDelete('condition','${escHtml(c.id)}','${escHtml(c.name)}')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
               </div>
             </div>
-            <div class="admin-list-item-actions">
-              <button class="btn btn-ghost btn-sm btn-icon" onclick="App.editCondition(${escHtml(JSON.stringify(c))})">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
-              <button class="btn btn-ghost btn-sm btn-icon" style="color:var(--danger)" onclick="App.confirmDelete('condition','${escHtml(c.id)}','${escHtml(c.name)}')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-              </button>
-            </div>
-          </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>
+
+      ${editing !== undefined && editing !== 'none' ? this.renderConditionForm(editing) : ''}
     `;
   },
 
   renderConditionForm(cond) {
     const isNew = !cond || !cond.id;
     const activeDept = (state.adminDepts || []).find(d => d.id === state.adminSelectedDeptId);
+    const formThemeColor = isNew ? 'var(--success)' : 'var(--primary)';
+    const formTitle = isNew ? 'TẠO MỚI BỆNH LÝ' : 'ĐANG CHỈNH SỬA BỆNH LÝ';
+    const formStatusBanner = isNew 
+      ? `<div style="background: var(--success-light); color: var(--success); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 16px; font-weight: 700; font-size: 0.85rem; border-left: 4px solid var(--success);">MẪU ĐIỀN: THÊM MỚI BỆNH LÝ</div>`
+      : `<div style="background: var(--primary-light); color: var(--primary); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 16px; font-weight: 700; font-size: 0.85rem; border-left: 4px solid var(--primary);">BẠN ĐANG CHỈNH SỬA BỆNH LÝ: ${escHtml(cond?.name)}</div>`;
+
     return `
-      <div class="admin-form-panel">
-        <div class="admin-form-title">
-          ${isNew ? 'Thêm Bệnh Lý mới' : 'Sửa: ' + escHtml(cond?.name)}
+      <div class="admin-form-panel" style="border: 2px solid ${formThemeColor}; box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
+        ${formStatusBanner}
+        <div class="admin-form-title" style="color: ${formThemeColor}; margin-bottom: var(--space-base);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px">
+            ${isNew ? '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>' : '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>'}
+          </svg>
+          ${formTitle}
         </div>
         <form onsubmit="App.saveConditionForm(event)">
           <input type="hidden" id="cf-id"     value="${escHtml(cond?.id || '')}" />
@@ -1103,48 +1119,61 @@ const App = {
         <div class="add-row">
           <button class="btn btn-primary btn-sm" onclick="App.editProtocol(null)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Thêm ngày / giai đoạn
+            Thêm Ngày / Giai Đoạn Mới
           </button>
         </div>
       ` : ''}
 
-      ${editing !== undefined && editing !== 'none' && state.adminFilterCond ? this.renderProtocolForm(editing) : ''}
-
-      <div class="admin-list">
+      <div class="admin-list" style="margin-bottom: var(--space-xl);">
         ${!state.adminFilterCond ? '<div class="empty-state"><p>Chọn khoa và bệnh lý để xem mẫu phiếu.</p></div>'
           : !state.adminProtocols.length ? `
           <div class="empty-state">
             <p>Chưa có mẫu phiếu nào.</p>
           </div>`
-          : state.adminProtocols.map((p, idx) => `
-          <div class="admin-list-item" style="flex-direction:column;gap:8px">
-            <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
-              <div>
-                <span class="day-badge">${escHtml(p.dayLabel || `Ngày ${idx+1}`)}</span>
-                <div class="admin-list-item-meta">Chăm sóc: ${escHtml(p.careLevel || '—')}</div>
+          : state.adminProtocols.map((p, idx) => {
+            const isEditing = editing && editing !== 'none' && editing.id === p.id;
+            return `
+              <div class="admin-list-item ${isEditing ? 'active-edit' : ''}" style="flex-direction:column;gap:8px" onclick="App.editProtocol('${escHtml(p.id)}')">
+                <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+                  <div>
+                    <span class="day-badge">${escHtml(p.dayLabel || `Ngày ${idx+1}`)}</span>
+                    ${isEditing ? `<span class="badge" style="background: var(--primary); color: var(--bg-white); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 0.75rem; margin-left: 8px; vertical-align: middle;">Đang sửa</span>` : ''}
+                    <div class="admin-list-item-meta">Chăm sóc: ${escHtml(p.careLevel || '—')}</div>
+                  </div>
+                  <div class="admin-list-item-actions">
+                    <button class="btn btn-ghost btn-sm btn-icon" onclick="event.stopPropagation(); App.editProtocol('${escHtml(p.id)}')">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button class="btn btn-ghost btn-sm btn-icon" style="color:var(--danger)" onclick="event.stopPropagation(); App.confirmDelete('protocol','${escHtml(p.id)}','${escHtml(p.dayLabel || '')}')">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div class="admin-list-item-actions">
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="App.editProtocol('${escHtml(p.id)}')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-                <button class="btn btn-ghost btn-sm btn-icon" style="color:var(--danger)" onclick="App.confirmDelete('protocol','${escHtml(p.id)}','${escHtml(p.dayLabel || '')}')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        `).join('')}
+            `;
+          }).join('')}
       </div>
+
+      ${editing !== undefined && editing !== 'none' && state.adminFilterCond ? this.renderProtocolForm(editing) : ''}
     `;
   },
 
   renderProtocolForm(proto) {
     const isNew = !proto || !proto.id;
+    const formThemeColor = isNew ? 'var(--success)' : 'var(--primary)';
+    const formTitle = isNew ? 'TẠO MỚI GIAI ĐOẠN / NGÀY' : 'ĐANG CHỈNH SỬA GIAI ĐOẠN / NGÀY';
+    const formStatusBanner = isNew
+      ? `<div style="background: var(--success-light); color: var(--success); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 16px; font-weight: 700; font-size: 0.85rem; border-left: 4px solid var(--success);">MẪU ĐIỀN: THÊM MỚI NGÀY / GIAI ĐOẠN</div>`
+      : `<div style="background: var(--primary-light); color: var(--primary); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 16px; font-weight: 700; font-size: 0.85rem; border-left: 4px solid var(--primary);">BẠN ĐANG CHỈNH SỬA GIAI ĐOẠN: ${escHtml(proto?.dayLabel)}</div>`;
 
     return `
-      <div class="admin-form-panel">
-        <div class="admin-form-title">
-          ${isNew ? 'Thêm giai đoạn mới' : 'Sửa: ' + escHtml(proto?.dayLabel)}
+      <div class="admin-form-panel" style="border: 2px solid ${formThemeColor}; box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
+        ${formStatusBanner}
+        <div class="admin-form-title" style="color: ${formThemeColor}; margin-bottom: var(--space-base);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px">
+            ${isNew ? '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>' : '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>'}
+          </svg>
+          ${formTitle}
         </div>
         <form onsubmit="App.saveProtocolForm(event)">
           <input type="hidden" id="pf-id"     value="${escHtml(proto?.id || '')}" />

@@ -852,9 +852,20 @@ a { color: inherit; text-decoration: none; }
   align-items: flex-start;
   gap: var(--space-md);
   box-shadow: var(--shadow-sm);
-  transition: border-color var(--transition);
+  cursor: pointer;
+  user-select: none;
+  transition: all var(--transition);
 }
-.admin-list-item:hover { border-color: var(--primary-mid); }
+.admin-list-item:hover {
+  border-color: var(--primary-mid);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.admin-list-item.active-edit {
+  border-color: var(--primary) !important;
+  background-color: var(--primary-xlight) !important;
+  box-shadow: 0 4px 12px rgba(45, 43, 140, 0.12);
+}
 
 .admin-list-item-body { flex: 1; min-width: 0; }
 
