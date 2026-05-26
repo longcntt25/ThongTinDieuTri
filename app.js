@@ -34,7 +34,8 @@ const state = {
   adminConditions:   null,
   adminProtocols:    null,
   modalCallback:     null,
-  toastTimer:        null
+  toastTimer:        null,
+  adminSelectedDeptId: null       // Khoa làm việc đang được chọn bởi Admin
 };
 
 /* ================================================================
@@ -778,6 +779,9 @@ const App = {
     const tabs = ['depts', 'conditions', 'protocols', 'settings'];
     const tabLabels = { depts: 'Khoa', conditions: 'Bệnh Lý', protocols: 'Mẫu Phiếu', settings: 'Cài Đặt' };
 
+    const activeDept = state.adminDepts ? state.adminDepts.find(d => d.id === state.adminSelectedDeptId) : null;
+    const deptName = activeDept ? activeDept.name : 'Chưa chọn';
+
     return `
       <div class="admin-wrap">
         <div class="admin-header">
@@ -791,6 +795,19 @@ const App = {
             Đăng xuất
           </button>
         </div>
+
+        <!-- Thanh thông tin khoa làm việc -->
+        ${state.adminView !== 'settings' ? `
+          <div style="background: var(--primary-light); color: var(--primary); padding: 12px var(--space-base); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; font-weight: 600; font-size: 0.9rem; border: 1.5px solid var(--primary-mid);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+              <span>Đang quản lý dữ liệu khoa: <strong style="font-size: 1rem; text-decoration: underline; color: var(--primary-dark);">${escHtml(deptName)}</strong></span>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="background: var(--bg-white); border-color: var(--primary-mid); color: var(--primary); font-size: 0.8rem; padding: 4px 10px;" onclick="App.showAdminDeptPopup()">
+              Thay Đổi Khoa làm việc
+            </button>
+          </div>
+        ` : ''}
 
         <div class="admin-tabs" role="tablist">
           ${tabs.map(t => `
@@ -809,12 +826,30 @@ const App = {
   },
 
   async loadAdminData() {
+    this.showLoading('Đang tải cấu hình...');
+    const res = await API.getDepts();
+    this.hideLoading();
+    state.adminDepts = res.data || [];
+
+    // Nếu chưa chọn khoa làm việc và view đang ở dạng quản lý (không phải Cài Đặt)
+    if (!state.adminSelectedDeptId && state.adminView !== 'settings') {
+      this.showAdminDeptPopup();
+      return;
+    }
+
     await this.renderAdminTab();
   },
 
   switchAdminTab(tab) {
     state.adminView = tab;
     state.adminEditItem = null;
+
+    // Nếu chưa chọn khoa và bấm sang tab quản lý khác
+    if (!state.adminSelectedDeptId && tab !== 'settings') {
+      this.showAdminDeptPopup();
+      return;
+    }
+
     const content = document.getElementById('admin-content');
     if (content) {
       // Update tab active
@@ -843,11 +878,11 @@ const App = {
   /* --- Admin: Quản lý Khoa --- */
   async buildAdminDepts() {
     const res = await API.getDepts();
-    // Lấy tất cả khoa (kể cả inactive) — cần lấy trực tiếp
-    const res2 = await API.get('getDepts'); // Chỉ lấy active, nên ta dùng state
     state.adminDepts = res.data || [];
 
     const editing = state.adminEditItem;
+    // Chỉ hiển thị duy nhất khoa đang làm việc được chọn
+    const activeDeptList = state.adminDepts.filter(d => d.id === state.adminSelectedDeptId);
 
     return `
       <div class="add-row">
@@ -860,12 +895,12 @@ const App = {
       ${editing !== undefined && editing !== 'none' ? this.renderDeptForm(editing) : ''}
 
       <div class="admin-list">
-        ${!state.adminDepts.length ? `
+        ${!activeDeptList.length ? `
           <div class="empty-state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
-            <p>Chưa có khoa nào. Nhấn "Thêm Khoa mới" để bắt đầu.</p>
+            <p>Khoa đang chọn không tìm thấy hoặc đã bị xóa.</p>
           </div>
-        ` : state.adminDepts.map(d => `
+        ` : activeDeptList.map(d => `
           <div class="admin-list-item">
             <div class="color-dot" style="background:${escHtml(d.color || '#2D2B8C')};margin-top:4px"></div>
             <div class="admin-list-item-body">
@@ -952,17 +987,31 @@ const App = {
     };
     if (!item.name) { this.showToast('Vui lòng nhập tên khoa', 'error'); return; }
 
+    // Kiểm tra trùng lặp tên khoa mới (không phân biệt hoa/thường, bỏ qua nếu đang sửa chính nó)
+    const isDuplicate = (state.adminDepts || []).some(d => d.name.toLowerCase() === item.name.toLowerCase() && d.id !== item.id);
+    if (isDuplicate) {
+      this.showToast(`Khoa "${item.name}" đã tồn tại! Vui lòng tìm kiếm chọn trong mục "Chọn Khoa".`, 'error');
+      return;
+    }
+
     this.showLoading('Đang lưu...');
     const res = await API.saveDept(item);
     this.hideLoading();
 
     if (res.success) {
       this.showToast('Lưu thành công!', 'success');
+      // Nếu tạo khoa mới thì đặt làm khoa làm việc hiện tại luôn
+      if (!existingId) {
+        state.adminSelectedDeptId = res.id;
+        state.adminFilterDept = res.id;
+      }
       Cache.clear();
       state.allData = null;
       this._preloadPromise = null;
       state.adminEditItem = 'none';
-      state.adminDepts = null;
+      
+      const resDepts = await API.getDepts();
+      state.adminDepts = resDepts.data || [];
       this.renderAdminTab();
     } else {
       this.showToast('Lỗi: ' + (res.error || 'Không lưu được'), 'error');
@@ -971,21 +1020,16 @@ const App = {
 
   /* --- Admin: Quản lý Bệnh Lý --- */
   async buildAdminConditions() {
-    // 1 request duy nhất thay vì 2 request tuần tự
+    // Khóa bộ lọc theo khoa làm việc được chọn bởi Admin
+    state.adminFilterDept = state.adminSelectedDeptId;
     const res = await API.getAdminData(state.adminFilterDept);
+    
     if (res.success) {
       state.adminDepts = res.depts || [];
-      if (!state.adminFilterDept && state.adminDepts.length) {
-        state.adminFilterDept = res.selectedDeptId || state.adminDepts[0].id;
-      }
       state.adminConditions = res.conditions || [];
     } else {
-      // Fallback về API cũ nếu endpoint mới chưa được deploy
       const deptRes = await API.getDepts();
       state.adminDepts = deptRes.data || [];
-      if (!state.adminFilterDept && state.adminDepts.length) {
-        state.adminFilterDept = state.adminDepts[0].id;
-      }
       let condRes = { data: [] };
       if (state.adminFilterDept) {
         condRes = await API.getConditions(state.adminFilterDept);
@@ -994,14 +1038,13 @@ const App = {
     }
 
     const editing = state.adminEditItem;
+    const activeDept = state.adminDepts.find(d => d.id === state.adminSelectedDeptId);
 
     return `
       <div class="admin-filters">
-        <select class="form-select" onchange="App.setAdminFilterDept(this.value)">
-          ${state.adminDepts.map(d => `
-            <option value="${escHtml(d.id)}" ${state.adminFilterDept === d.id ? 'selected' : ''}>${escHtml(d.name)}</option>
-          `).join('')}
-        </select>
+        <div style="font-weight: 700; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; font-size: 0.9rem; padding: 6px 0;">
+          Danh sách Bệnh Lý thuộc: <span style="color: var(--primary);">${escHtml(activeDept?.name)}</span>
+        </div>
         <button class="btn btn-primary btn-sm" onclick="App.editCondition(null)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Thêm mới
@@ -1045,7 +1088,7 @@ const App = {
 
   renderConditionForm(cond) {
     const isNew = !cond || !cond.id;
-    const depts = state.adminDepts || [];
+    const activeDept = (state.adminDepts || []).find(d => d.id === state.adminSelectedDeptId);
     return `
       <div class="admin-form-panel">
         <div class="admin-form-title">
@@ -1054,12 +1097,9 @@ const App = {
         <form onsubmit="App.saveConditionForm(event)">
           <input type="hidden" id="cf-id"     value="${escHtml(cond?.id || '')}" />
           <div class="form-group">
-            <label class="form-label">Khoa <span class="req">*</span></label>
-            <select id="cf-dept" class="form-select" required>
-              ${depts.map(d => `
-                <option value="${escHtml(d.id)}" ${(cond?.deptId || state.adminFilterDept) === d.id ? 'selected' : ''}>${escHtml(d.name)}</option>
-              `).join('')}
-            </select>
+            <label class="form-label">Khoa</label>
+            <div class="form-input" style="background: var(--bg); font-weight: 600; color: var(--text-secondary); border-color: var(--border-strong);">${escHtml(activeDept?.name || '')}</div>
+            <input type="hidden" id="cf-dept" value="${escHtml(state.adminSelectedDeptId)}" />
           </div>
           <div class="form-group">
             <label class="form-label">Tên Bệnh Lý <span class="req">*</span></label>
@@ -1141,25 +1181,19 @@ const App = {
 
   /* --- Admin: Quản lý Mẫu Phiếu --- */
   async buildAdminProtocols() {
-    // 1 request duy nhất thay vì 3 request tuần tự
+    // Khóa bộ lọc khoa theo khoa làm việc hiện tại
+    state.adminFilterDept = state.adminSelectedDeptId;
     const res = await API.getAdminData(state.adminFilterDept, state.adminFilterCond);
     if (res.success) {
       state.adminDepts = res.depts || [];
-      if (!state.adminFilterDept && state.adminDepts.length) {
-        state.adminFilterDept = res.selectedDeptId || state.adminDepts[0].id;
-      }
       state.adminConditions = res.conditions || [];
       if (!state.adminFilterCond && state.adminConditions.length) {
         state.adminFilterCond = res.selectedCondId || state.adminConditions[0].id;
       }
       state.adminProtocols = res.protocols || [];
     } else {
-      // Fallback về API cũ nếu endpoint mới chưa được deploy
       const deptRes = await API.getDepts();
       state.adminDepts = deptRes.data || [];
-      if (!state.adminFilterDept && state.adminDepts.length) {
-        state.adminFilterDept = state.adminDepts[0].id;
-      }
       let condRes = { data: [] };
       if (state.adminFilterDept) {
         condRes = await API.getConditions(state.adminFilterDept);
@@ -1176,21 +1210,23 @@ const App = {
     }
 
     const editing = state.adminEditItem;
+    const activeDept = state.adminDepts.find(d => d.id === state.adminSelectedDeptId);
 
     return `
-      <div class="admin-filters">
-        <select class="form-select" onchange="App.setAdminFilterDeptProto(this.value)">
-          ${state.adminDepts.map(d => `
-            <option value="${escHtml(d.id)}" ${state.adminFilterDept === d.id ? 'selected' : ''}>${escHtml(d.name)}</option>
-          `).join('')}
-        </select>
-        <select class="form-select" onchange="App.setAdminFilterCond(this.value)">
-          ${!state.adminConditions.length
-            ? '<option value="">— Chưa có bệnh lý —</option>'
-            : state.adminConditions.map(c => `
-                <option value="${escHtml(c.id)}" ${state.adminFilterCond === c.id ? 'selected' : ''}>${escHtml(c.name)}</option>
-              `).join('')}
-        </select>
+      <div class="admin-filters" style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+        <div style="font-weight: 700; color: var(--text-secondary); font-size: 0.9rem;">
+          Mẫu phiếu thuộc khoa: <span style="color: var(--primary);">${escHtml(activeDept?.name)}</span>
+        </div>
+        <div style="display: flex; gap: var(--space-sm); width: 100%; align-items: center; flex-wrap: wrap;">
+          <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); flex-shrink: 0;">Chọn Bệnh lý để chỉnh sửa:</span>
+          <select class="form-select" onchange="App.setAdminFilterCond(this.value)" style="flex: 1; max-width: 320px;">
+            ${!state.adminConditions.length
+              ? '<option value="">— Chưa có bệnh lý —</option>'
+              : state.adminConditions.map(c => `
+                  <option value="${escHtml(c.id)}" ${state.adminFilterCond === c.id ? 'selected' : ''}>${escHtml(c.name)}</option>
+                `).join('')}
+          </select>
+        </div>
       </div>
 
       ${state.adminFilterCond ? `
@@ -1506,6 +1542,7 @@ const App = {
     await API.logout();
     this.hideLoading();
     state.adminToken = null;
+    state.adminSelectedDeptId = null; // Reset khoa làm việc
     sessionStorage.removeItem(CONFIG.ADMIN_TOKEN_KEY);
     this.showToast('Đã đăng xuất', 'success');
     this.navigate('home');
@@ -1525,7 +1562,12 @@ const App = {
       this.closeModal();
       this.showLoading('Đang xoá...');
       let res;
-      if (type === 'dept')      res = await API.deleteDept(id);
+      if (type === 'dept') {
+        res = await API.deleteDept(id);
+        if (res?.success && id === state.adminSelectedDeptId) {
+          state.adminSelectedDeptId = null; // Clear nếu xóa chính khoa đang làm việc
+        }
+      }
       if (type === 'condition') res = await API.deleteCondition(id);
       if (type === 'protocol')  res = await API.deleteProtocol(id);
       this.hideLoading();
@@ -1535,7 +1577,13 @@ const App = {
         state.allData = null;
         this._preloadPromise = null;
         state.adminEditItem = 'none';
-        this.renderAdminTab();
+        
+        // Nếu xóa đúng khoa đang chọn, yêu cầu chọn lại khoa
+        if (!state.adminSelectedDeptId && state.adminView !== 'settings') {
+          await this.loadAdminData();
+        } else {
+          this.renderAdminTab();
+        }
       } else {
         this.showToast('Lỗi khi xoá: ' + (res?.error || ''), 'error');
       }
@@ -1683,6 +1731,126 @@ const App = {
         });
       });
     }
+  },
+
+  showAdminDeptPopup() {
+    let overlay = document.getElementById('admin-dept-select-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'admin-dept-select-overlay';
+      overlay.className = 'modal-overlay';
+      overlay.style.zIndex = '999';
+      document.body.appendChild(overlay);
+    }
+    overlay.classList.remove('hidden');
+
+    const depts = state.adminDepts || [];
+
+    overlay.innerHTML = `
+      <div class="modal-box" style="max-width: 440px;" onclick="event.stopPropagation()">
+        <h3 class="modal-title" style="font-size: 1.1rem; color: var(--primary);">Chọn Khoa làm việc</h3>
+        <p class="modal-msg" style="margin-bottom: 15px; font-size: 0.85rem; line-height: 1.4;">Vui lòng Chọn Khoa sẵn có từ danh sách <strong>HOẶC</strong> nhập tên để Tạo Khoa mới. Bạn phải chọn 1 trong 2 để quản lý dữ liệu.</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+          <!-- HƯỚNG 1: Chọn khoa sẵn có -->
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-weight: 700; color: var(--text);">HƯỚNG 1: Chọn Khoa sẵn có</label>
+            <select id="pop-select-dept" class="form-select">
+              <option value="">-- Chọn Khoa --</option>
+              ${depts.map(d => `<option value="${escHtml(d.id)}">${escHtml(d.name)}</option>`).join('')}
+            </select>
+          </div>
+
+          <div style="text-align: center; color: var(--text-muted); font-weight: 800; font-size: 0.75rem; margin: 2px 0;">
+            - HOẶC -
+          </div>
+
+          <!-- HƯỚNG 2: Tạo khoa mới -->
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-weight: 700; color: var(--text);">HƯỚNG 2: Tạo Khoa mới</label>
+            <input type="text" id="pop-new-dept-name" class="form-input" placeholder="Nhập tên khoa mới (VD: Khoa Sản 3)" />
+          </div>
+
+          <div id="pop-error" class="hidden" style="color: var(--danger); font-size: 0.8rem; font-weight: 700; padding: 4px 0;"></div>
+
+          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+            <button class="btn btn-ghost btn-sm" onclick="App.navigate('home')">Về trang chủ</button>
+            <button class="btn btn-primary btn-sm" onclick="App.confirmAdminDeptSelection()">Xác nhận</button>
+          </div>
+        </div>
+      </div>
+    `;
+    this.initCustomSelects();
+  },
+
+  async confirmAdminDeptSelection() {
+    const selectVal = document.getElementById('pop-select-dept').value;
+    const newNameVal = document.getElementById('pop-new-dept-name').value.trim();
+    const errorEl = document.getElementById('pop-error');
+
+    errorEl.classList.add('hidden');
+    errorEl.textContent = '';
+
+    // 1. Chọn khoa sẵn có
+    if (selectVal) {
+      state.adminSelectedDeptId = selectVal;
+      state.adminFilterDept = selectVal;
+      
+      const overlay = document.getElementById('admin-dept-select-overlay');
+      if (overlay) overlay.classList.add('hidden');
+      
+      this.renderAdminTab();
+      return;
+    }
+
+    // 2. Tạo khoa mới
+    if (newNameVal) {
+      const isDuplicate = (state.adminDepts || []).some(d => d.name.toLowerCase() === newNameVal.toLowerCase());
+      if (isDuplicate) {
+        errorEl.textContent = `Khoa "${newNameVal}" đã có! Hãy tìm kiếm và chọn trong danh sách "Chọn Khoa".`;
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      this.showLoading('Đang tạo khoa mới...');
+      const item = {
+        id: genId(),
+        name: newNameVal,
+        description: '',
+        color: '#2D2B8C',
+        sortOrder: 1,
+        active: 'TRUE'
+      };
+
+      const res = await API.saveDept(item);
+      this.hideLoading();
+
+      if (res.success) {
+        state.adminSelectedDeptId = res.id;
+        state.adminFilterDept = res.id;
+        
+        Cache.clear();
+        state.allData = null;
+        this._preloadPromise = null;
+        
+        // Tải lại danh sách khoa mới
+        const resDepts = await API.getDepts();
+        state.adminDepts = resDepts.data || [];
+
+        const overlay = document.getElementById('admin-dept-select-overlay');
+        if (overlay) overlay.classList.add('hidden');
+
+        this.showToast('Tạo Khoa mới thành công!', 'success');
+        this.renderAdminTab();
+      } else {
+        errorEl.textContent = 'Lỗi: ' + (res.error || 'Vui lòng thử lại.');
+        errorEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    errorEl.textContent = 'Vui lòng Chọn khoa sẵn có HOẶC Nhập tên khoa mới.';
+    errorEl.classList.remove('hidden');
   }
 };
 
