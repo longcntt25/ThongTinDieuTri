@@ -26,7 +26,7 @@ const state = {
   selectedCondition: null,
   activeDay:         0,           // Index tab ngày đang xem
   adminToken:        null,
-  adminView:         'depts',     // Tab admin hiện tại
+  adminView:         'conditions',// Tab admin mặc định là Bệnh Lý
   adminEditItem:     null,        // Item đang sửa trong admin
   adminFilterDept:   '',          // Filter khoa trong admin protocol
   adminFilterCond:   '',          // Filter bệnh trong admin protocol
@@ -776,8 +776,8 @@ const App = {
   renderAdmin() {
     if (!state.adminToken) { return this.renderAdminLogin(); }
 
-    const tabs = ['depts', 'conditions', 'protocols', 'settings'];
-    const tabLabels = { depts: 'Khoa', conditions: 'Bệnh Lý', protocols: 'Mẫu Phiếu', settings: 'Cài Đặt' };
+    const tabs = ['conditions', 'protocols', 'settings'];
+    const tabLabels = { conditions: 'Bệnh Lý', protocols: 'Mẫu Phiếu', settings: 'Cài Đặt' };
 
     const activeDept = state.adminDepts ? state.adminDepts.find(d => d.id === state.adminSelectedDeptId) : null;
     const deptName = activeDept ? activeDept.name : 'Chưa chọn';
@@ -798,14 +798,25 @@ const App = {
 
         <!-- Thanh thông tin khoa làm việc -->
         ${state.adminView !== 'settings' ? `
-          <div style="background: var(--primary-light); color: var(--primary); padding: 12px var(--space-base); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; font-weight: 600; font-size: 0.9rem; border: 1.5px solid var(--primary-mid);">
+          <div style="background: var(--primary-light); color: var(--primary); padding: 12px var(--space-base); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; font-weight: 600; font-size: 0.9rem; border: 1.5px solid var(--primary-mid); flex-wrap: wrap; gap: 10px;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
               <span>Đang quản lý dữ liệu khoa: <strong style="font-size: 1rem; text-decoration: underline; color: var(--primary-dark);">${escHtml(deptName)}</strong></span>
             </div>
-            <button class="btn btn-ghost btn-sm" style="background: var(--bg-white); border-color: var(--primary-mid); color: var(--primary); font-size: 0.8rem; padding: 4px 10px;" onclick="App.showAdminDeptPopup()">
-              Thay Đổi Khoa làm việc
-            </button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <!-- Nút Sửa khoa -->
+              <button class="btn btn-ghost btn-sm btn-icon" style="background: var(--bg-white); border-color: var(--primary-mid); color: var(--primary);" title="Sửa tên hoặc thông tin khoa" onclick="App.showEditDeptPopup('${escHtml(state.adminSelectedDeptId)}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <!-- Nút Xóa khoa -->
+              <button class="btn btn-ghost btn-sm btn-icon" style="background: var(--bg-white); border-color: var(--danger); color: var(--danger);" title="Xóa khoa này" onclick="App.confirmDelete('dept','${escHtml(state.adminSelectedDeptId)}','${escHtml(deptName)}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              </button>
+              <!-- Nút Đổi khoa -->
+              <button class="btn btn-ghost btn-sm" style="background: var(--bg-white); border-color: var(--primary-mid); color: var(--primary); font-size: 0.8rem; padding: 4px 10px;" onclick="App.showAdminDeptPopup()">
+                Đổi Khoa làm việc
+              </button>
+            </div>
           </div>
         ` : ''}
 
@@ -857,7 +868,7 @@ const App = {
     if (content) {
       // Update tab active
       document.querySelectorAll('.admin-tab').forEach(el => {
-        el.classList.toggle('active', el.textContent.trim() === { depts: 'Khoa', conditions: 'Bệnh Lý', protocols: 'Mẫu Phiếu', settings: 'Cài Đặt' }[tab]);
+        el.classList.toggle('active', el.textContent.trim() === { conditions: 'Bệnh Lý', protocols: 'Mẫu Phiếu', settings: 'Cài Đặt' }[tab]);
       });
       content.innerHTML = this.renderLoading();
       this.renderAdminTab();
@@ -869,156 +880,12 @@ const App = {
     if (!content) return;
 
     switch (state.adminView) {
-      case 'depts':      content.innerHTML = await this.buildAdminDepts();      break;
       case 'conditions': content.innerHTML = await this.buildAdminConditions(); break;
       case 'protocols':  content.innerHTML = await this.buildAdminProtocols();  break;
       case 'settings':   content.innerHTML = this.buildAdminSettings();         break;
     }
 
     this.initCustomSelects();
-  },
-
-  /* --- Admin: Quản lý Khoa --- */
-  async buildAdminDepts() {
-    const res = await API.getDepts();
-    state.adminDepts = res.data || [];
-
-    const editing = state.adminEditItem;
-    // Chỉ hiển thị duy nhất khoa đang làm việc được chọn
-    const activeDeptList = state.adminDepts.filter(d => d.id === state.adminSelectedDeptId);
-
-    return `
-      <div class="add-row">
-        <button class="btn btn-primary btn-sm" onclick="App.editDept(null)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Thêm Khoa mới
-        </button>
-      </div>
-
-      ${editing !== undefined && editing !== 'none' ? this.renderDeptForm(editing) : ''}
-
-      <div class="admin-list">
-        ${!activeDeptList.length ? `
-          <div class="empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
-            <p>Khoa đang chọn không tìm thấy hoặc đã bị xóa.</p>
-          </div>
-        ` : activeDeptList.map(d => `
-          <div class="admin-list-item">
-            <div class="color-dot" style="background:${escHtml(d.color || '#2D2B8C')};margin-top:4px"></div>
-            <div class="admin-list-item-body">
-              <div class="admin-list-item-title">${escHtml(d.name)}</div>
-              <div class="admin-list-item-meta">
-                ${escHtml(d.description || '')}
-                &nbsp;·&nbsp;
-                <span class="status-badge ${d.active === true || String(d.active).toUpperCase() === 'TRUE' ? 'status-active' : 'status-inactive'}">
-                  ${d.active === true || String(d.active).toUpperCase() === 'TRUE' ? 'Hiển thị' : 'Ẩn'}
-                </span>
-              </div>
-            </div>
-            <div class="admin-list-item-actions">
-              <button class="btn btn-ghost btn-sm btn-icon" title="Sửa" onclick="App.editDept(${escHtml(JSON.stringify(d))})">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
-              <button class="btn btn-ghost btn-sm btn-icon" title="Xóa" style="color:var(--danger)" onclick="App.confirmDelete('dept','${escHtml(d.id)}','${escHtml(d.name)}')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-              </button>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  },
-
-  renderDeptForm(dept) {
-    const isNew = !dept || !dept.id;
-    return `
-      <div class="admin-form-panel">
-        <div class="admin-form-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
-          ${isNew ? 'Thêm Khoa mới' : 'Sửa Khoa: ' + escHtml(dept?.name)}
-        </div>
-        <form onsubmit="App.saveDeptForm(event, ${isNew ? 'null' : `'${escHtml(dept?.id)}'`})">
-          <input type="hidden" id="df-id" value="${escHtml(dept?.id || '')}" />
-          <div class="form-group">
-            <label class="form-label">Tên Khoa <span class="req">*</span></label>
-            <input type="text" id="df-name" class="form-input" value="${escHtml(dept?.name || '')}" required placeholder="VD: Khoa Sản 3" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Mô tả</label>
-            <input type="text" id="df-desc" class="form-input" value="${escHtml(dept?.description || '')}" placeholder="Mô tả ngắn" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Màu sắc</label>
-            <input type="color" id="df-color" value="${escHtml(dept?.color || '#2D2B8C')}" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Thứ tự hiển thị</label>
-            <input type="number" id="df-order" class="form-input" value="${escHtml(String(dept?.sortOrder || 1))}" min="1" style="max-width:120px" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Trạng thái</label>
-            <select id="df-active" class="form-select">
-              <option value="TRUE"  ${(dept?.active === true || String(dept?.active).toUpperCase() === 'TRUE') ? 'selected' : ''}>Hiển thị</option>
-              <option value="FALSE" ${String(dept?.active).toUpperCase() === 'FALSE' ? 'selected' : ''}>Ẩn</option>
-            </select>
-          </div>
-          <div class="admin-form-actions">
-            <button type="submit" class="btn btn-primary btn-sm">Lưu</button>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="App.cancelEdit()">Huỷ</button>
-          </div>
-        </form>
-      </div>
-    `;
-  },
-
-  editDept(deptObj) {
-    const dept = typeof deptObj === 'string' ? JSON.parse(deptObj) : deptObj;
-    state.adminEditItem = dept;
-    this.renderAdminTab();
-  },
-
-  async saveDeptForm(e, existingId) {
-    e.preventDefault();
-    const item = {
-      id:          existingId || document.getElementById('df-id').value || genId(),
-      name:        document.getElementById('df-name').value.trim(),
-      description: document.getElementById('df-desc').value.trim(),
-      color:       document.getElementById('df-color').value,
-      sortOrder:   parseInt(document.getElementById('df-order').value) || 1,
-      active:      document.getElementById('df-active').value
-    };
-    if (!item.name) { this.showToast('Vui lòng nhập tên khoa', 'error'); return; }
-
-    // Kiểm tra trùng lặp tên khoa mới (không phân biệt hoa/thường, bỏ qua nếu đang sửa chính nó)
-    const isDuplicate = (state.adminDepts || []).some(d => d.name.toLowerCase() === item.name.toLowerCase() && d.id !== item.id);
-    if (isDuplicate) {
-      this.showToast(`Khoa "${item.name}" đã tồn tại! Vui lòng tìm kiếm chọn trong mục "Chọn Khoa".`, 'error');
-      return;
-    }
-
-    this.showLoading('Đang lưu...');
-    const res = await API.saveDept(item);
-    this.hideLoading();
-
-    if (res.success) {
-      this.showToast('Lưu thành công!', 'success');
-      // Nếu tạo khoa mới thì đặt làm khoa làm việc hiện tại luôn
-      if (!existingId) {
-        state.adminSelectedDeptId = res.id;
-        state.adminFilterDept = res.id;
-      }
-      Cache.clear();
-      state.allData = null;
-      this._preloadPromise = null;
-      state.adminEditItem = 'none';
-      
-      const resDepts = await API.getDepts();
-      state.adminDepts = resDepts.data || [];
-      this.renderAdminTab();
-    } else {
-      this.showToast('Lỗi: ' + (res.error || 'Không lưu được'), 'error');
-    }
   },
 
   /* --- Admin: Quản lý Bệnh Lý --- */
@@ -1825,7 +1692,7 @@ const App = {
       const overlay = document.getElementById('admin-dept-select-overlay');
       if (overlay) overlay.classList.add('hidden');
       
-      this.renderAdminTab();
+      this.render();
       return;
     }
 
@@ -1867,7 +1734,7 @@ const App = {
         if (overlay) overlay.classList.add('hidden');
 
         this.showToast('Tạo Khoa mới thành công!', 'success');
-        this.renderAdminTab();
+        this.render();
       } else {
         errorEl.textContent = 'Lỗi: ' + (res.error || 'Vui lòng thử lại.');
         errorEl.classList.remove('hidden');
@@ -1877,6 +1744,102 @@ const App = {
 
     errorEl.textContent = 'Vui lòng Chọn khoa sẵn có HOẶC Nhập tên khoa mới.';
     errorEl.classList.remove('hidden');
+  },
+
+  showEditDeptPopup(deptId) {
+    const dept = state.adminDepts.find(d => d.id === deptId);
+    if (!dept) return;
+
+    let overlay = document.getElementById('admin-dept-edit-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'admin-dept-edit-overlay';
+      overlay.className = 'modal-overlay';
+      overlay.style.zIndex = '999';
+      overlay.onclick = () => document.getElementById('admin-dept-edit-overlay').classList.add('hidden');
+      document.body.appendChild(overlay);
+    }
+    overlay.classList.remove('hidden');
+
+    overlay.innerHTML = `
+      <div class="modal-box" style="max-width: 440px; position: relative;" onclick="event.stopPropagation()">
+        <!-- Nút đóng (X) -->
+        <button onclick="document.getElementById('admin-dept-edit-overlay').classList.add('hidden')" style="position: absolute; right: 15px; top: 15px; background: none; border: none; font-size: 1.5rem; font-weight: 700; color: var(--text-muted); cursor: pointer; padding: 4px; line-height: 1;">&times;</button>
+        
+        <h3 class="modal-title" style="font-size: 1.1rem; color: var(--primary);">Chỉnh sửa thông tin Khoa</h3>
+        
+        <form onsubmit="App.saveDeptFormPopup(event, '${escHtml(dept.id)}')">
+          <div class="form-group">
+            <label class="form-label">Tên Khoa <span class="req">*</span></label>
+            <input type="text" id="edit-dept-name" class="form-input" value="${escHtml(dept.name)}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mô tả ngắn</label>
+            <input type="text" id="edit-dept-desc" class="form-input" value="${escHtml(dept.description || '')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Màu sắc hiển thị</label>
+            <input type="color" id="edit-dept-color" value="${escHtml(dept.color || '#2D2B8C')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Thứ tự hiển thị</label>
+            <input type="number" id="edit-dept-order" class="form-input" value="${escHtml(String(dept.sortOrder || 1))}" min="1" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Trạng thái</label>
+            <select id="edit-dept-active" class="form-select">
+              <option value="TRUE" ${dept.active === true || String(dept.active).toUpperCase() === 'TRUE' ? 'selected' : ''}>Hiển thị</option>
+              <option value="FALSE" ${String(dept.active).toUpperCase() === 'FALSE' ? 'selected' : ''}>Ẩn</option>
+            </select>
+          </div>
+          
+          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('admin-dept-edit-overlay').classList.add('hidden')">Huỷ</button>
+            <button type="submit" class="btn btn-primary btn-sm">Lưu thay đổi</button>
+          </div>
+        </form>
+      </div>
+    `;
+    this.initCustomSelects();
+  },
+
+  async saveDeptFormPopup(e, deptId) {
+    e.preventDefault();
+    const item = {
+      id:          deptId,
+      name:        document.getElementById('edit-dept-name').value.trim(),
+      description: document.getElementById('edit-dept-desc').value.trim(),
+      color:       document.getElementById('edit-dept-color').value,
+      sortOrder:   parseInt(document.getElementById('edit-dept-order').value) || 1,
+      active:      document.getElementById('edit-dept-active').value
+    };
+    if (!item.name) { this.showToast('Vui lòng nhập tên khoa', 'error'); return; }
+
+    const isDuplicate = (state.adminDepts || []).some(d => d.name.toLowerCase() === item.name.toLowerCase() && d.id !== item.id);
+    if (isDuplicate) {
+      this.showToast(`Tên khoa "${item.name}" đã tồn tại!`, 'error');
+      return;
+    }
+
+    this.showLoading('Đang lưu...');
+    const res = await API.saveDept(item);
+    this.hideLoading();
+
+    if (res.success) {
+      this.showToast('Cập nhật khoa thành công!', 'success');
+      document.getElementById('admin-dept-edit-overlay').classList.add('hidden');
+      
+      Cache.clear();
+      state.allData = null;
+      this._preloadPromise = null;
+      
+      const resDepts = await API.getDepts();
+      state.adminDepts = resDepts.data || [];
+
+      this.render();
+    } else {
+      this.showToast('Lỗi: ' + (res.error || 'Không lưu được'), 'error');
+    }
   }
 };
 
